@@ -8,6 +8,9 @@
     "skipLibCheck": true,
     "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true,
+    "noUncheckedIndexedAccess": true,
+    "noUnusedParameters": true,
+    // "noUnusedLocals": true — skipped: src/ and test/ files have unused locals outside this round's scope
     "outDir": "dist",
     "rootDir": ".",
     "types": ["node", "vitest/globals"]

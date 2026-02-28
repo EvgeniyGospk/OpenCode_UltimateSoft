@@ -298,7 +298,7 @@ describe("ProfileSnapshotStore.listSnapshots", () => {
     await snapshotStore.createSnapshot(profileDir, "real");
 
     // Manually create a bogus snapshot directory without manifest
-    const realProfilePath = await fs.realpath(profileDir);
+    const _realProfilePath = await fs.realpath(profileDir);
     // We need to find the bucket path — list the snapshots dir
     const rootEntries = await fs.readdir(snapshotsDir);
     expect(rootEntries.length).toBe(1);
@@ -477,7 +477,7 @@ describe("ProfileSnapshotStore.restoreSnapshot", () => {
     });
 
     // Create a valid snapshot first so the bucket directory exists
-    const valid = await snapshotStore.createSnapshot(profileDir, "setup");
+    const _valid = await snapshotStore.createSnapshot(profileDir, "setup");
 
     // Get the bucket path and create a snapshot with broken manifest
     const rootEntries = await fs.readdir(snapshotsDir);

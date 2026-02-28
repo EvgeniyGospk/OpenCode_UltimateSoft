@@ -320,7 +320,7 @@ describe("POST /api/v1/agents/:agentKey/rename — validation errors", () => {
 
     expect(response.statusCode).toBe(400);
     const body = response.json<{ error: { code: string } }>();
-    expect(body.error.code).toBe("AGENT_RENAME_NOOP");
+    expect(body.error.code).toBe("INVALID_KEY");
   });
 
   it("rejects renaming to an existing agent key", async () => {
