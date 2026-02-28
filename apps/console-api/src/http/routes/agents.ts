@@ -1,19 +1,22 @@
-import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
+import type { FastifyInstance, FastifyRequest } from "fastify";
 import { sendData } from "../envelope.js";
 import { wrapRoute } from "../error-handler.js";
-import {
-  ProfileService,
-  ProfileServiceError
-} from "../../modules/profile/application/profile-service.js";
+import { ProfileServiceError } from "../../modules/profile/domain/errors.js";
+import type { IAgentService } from "../../modules/profile/domain/service-interfaces.js";
 import type { AgentKeyPool } from "../../modules/profile/domain/profile-types.js";
-import { isJsonObject } from "../../utils/validation.js";
+import {
+  parseUpdateBody,
+  requireJsonBody,
+  requireStringField
+} from "../../utils/validation.js";
+import { isValidKeyPool } from "../../modules/profile/application/validation-helpers.js";
 
 function parseOptionalKeyPool(value: unknown): AgentKeyPool | undefined {
   if (value === undefined) {
     return undefined;
   }
 
-  if (value === "any" || value === "software" || value === "default") {
+  if (isValidKeyPool(value)) {
     return value;
   }
 
@@ -25,69 +28,31 @@ function parseOptionalKeyPool(value: unknown): AgentKeyPool | undefined {
 }
 
 function parseCreateBody(body: unknown) {
-  if (!isJsonObject(body)) {
-    throw new ProfileServiceError(
-      "INVALID_BODY",
-      "Request body must be a JSON object.",
-      400
-    );
-  }
-
-  const key = body.key;
-  const definition = body.definition;
-  const keyPool = parseOptionalKeyPool(body.keyPool);
-
-  if (typeof key !== "string") {
-    throw new ProfileServiceError(
-      "INVALID_BODY",
-      "Field 'key' must be a string.",
-      400
-    );
-  }
-
-  if (!isJsonObject(definition)) {
-    throw new ProfileServiceError(
-      "INVALID_BODY",
-      "Field 'definition' must be a JSON object.",
-      400
-    );
-  }
+  const obj = requireJsonBody(body);
+  const key = requireStringField(obj.key, "key");
+  const { definition } = parseUpdateBody(body);
+  const keyPool = parseOptionalKeyPool(obj.keyPool);
 
   return { key, definition, keyPool };
 }
 
-function parseUpdateBody(body: unknown) {
-  if (!isJsonObject(body) || !isJsonObject(body.definition)) {
-    throw new ProfileServiceError(
-      "INVALID_BODY",
-      "Field 'definition' must be a JSON object.",
-      400
-    );
-  }
-
+function parseAgentUpdateBody(body: unknown) {
+  const { definition, raw } = parseUpdateBody(body);
   return {
-    definition: body.definition,
-    keyPool: parseOptionalKeyPool(body.keyPool)
+    definition,
+    keyPool: parseOptionalKeyPool(raw.keyPool)
   };
 }
 
 function parseRenameBody(body: unknown) {
-  if (!isJsonObject(body) || typeof body.key !== "string") {
-    throw new ProfileServiceError(
-      "INVALID_BODY",
-      "Field 'key' must be a string.",
-      400
-    );
-  }
-
-  return {
-    key: body.key
-  };
+  const obj = requireJsonBody(body);
+  const key = requireStringField(obj.key, "key");
+  return { key };
 }
 
 export async function registerAgentRoutes(
   app: FastifyInstance,
-  profileService: ProfileService
+  profileService: IAgentService
 ) {
   app.get(
     "/api/v1/agents",
@@ -131,7 +96,7 @@ export async function registerAgentRoutes(
     wrapRoute<FastifyRequest<{ Params: { agentKey: string } }>>(
       app,
       async (request, reply) => {
-        const payload = parseUpdateBody(request.body);
+        const payload = parseAgentUpdateBody(request.body);
         const result = await profileService.updateAgent(
           request.params.agentKey,
           payload.definition,

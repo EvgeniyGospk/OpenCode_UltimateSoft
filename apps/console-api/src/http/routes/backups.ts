@@ -1,11 +1,11 @@
-import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
+import type { FastifyInstance, FastifyRequest } from "fastify";
 import { sendData } from "../envelope.js";
 import { wrapRoute } from "../error-handler.js";
-import { ProfileService } from "../../modules/profile/application/profile-service.js";
+import type { IBackupService } from "../../modules/profile/domain/service-interfaces.js";
 
 export async function registerBackupRoutes(
   app: FastifyInstance,
-  profileService: ProfileService
+  profileService: IBackupService
 ) {
   app.get(
     "/api/v1/backups",

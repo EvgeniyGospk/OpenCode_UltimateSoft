@@ -1,9 +1,41 @@
 import type { JsonObject } from "../domain/profile-types.js";
 import { isJsonObject } from "../domain/profile-types.js";
 
-const LEGACY_USER_HOME = "/Users/guard2";
-const REQUIRED_ANTIGRAVITY_PLUGIN = "opencode-antigravity-auth@1.6.0";
-const REQUIRED_MULTI_AUTH_PLUGIN = "@guard22/opencode-multi-auth-codex";
+const LEGACY_USER_HOME = process.env.OC_LEGACY_USER_HOME ?? "/Users/guard2";
+
+/**
+ * Describes a plugin that must always be present in the resolved
+ * plugin list.  The `matchPatterns` array contains substrings that
+ * identify existing specifiers belonging to this logical plugin so
+ * they can be deduplicated before the canonical specifier is prepended.
+ */
+interface RequiredPlugin {
+  /**
+   * Returns the canonical specifier to inject. Receives the resolved
+   * home directory so file-path plugins can be location-independent.
+   */
+  canonicalSpecifier: (homeDir: string) => string;
+  /** Substrings to match against existing plugin specifiers. */
+  matchPatterns: string[];
+}
+
+const REQUIRED_PLUGINS: RequiredPlugin[] = [
+  {
+    canonicalSpecifier: () => "opencode-antigravity-auth@1.6.0",
+    matchPatterns: ["antigravity"]
+  },
+  {
+    canonicalSpecifier: () => "@guard22/opencode-multi-auth-codex",
+    matchPatterns: ["multi-auth"]
+  },
+  {
+    canonicalSpecifier: (homeDir) => {
+      const morphHome = homeDir || LEGACY_USER_HOME;
+      return `file://${morphHome}/.config/opencode/local-plugins/opencode-morph-fast-apply/index.ts`;
+    },
+    matchPatterns: ["morph-fast-apply"]
+  }
+];
 
 export function resolveHomeDir() {
   const home = process.env.HOME?.trim();
@@ -52,25 +84,10 @@ export function rewriteLegacyPathsInValue(value: unknown, homeDir: string): unkn
   return value;
 }
 
-function isAntigravityPlugin(specifier: string) {
-  return specifier.includes("opencode-antigravity-auth");
-}
-
-function isMultiAuthPlugin(specifier: string) {
-  return specifier.includes("opencode-multi-auth-codex");
-}
-
-function isMorphFastApplyPlugin(specifier: string) {
-  return specifier.includes("opencode-morph-fast-apply");
-}
-
-function buildRequiredPluginSpecifiers(homeDir: string) {
-  const morphHome = homeDir || LEGACY_USER_HOME;
-  return [
-    REQUIRED_ANTIGRAVITY_PLUGIN,
-    REQUIRED_MULTI_AUTH_PLUGIN,
-    `file://${morphHome}/.config/opencode/local-plugins/opencode-morph-fast-apply/index.ts`
-  ];
+function isRequiredPlugin(specifier: string): boolean {
+  return REQUIRED_PLUGINS.some((plugin) =>
+    plugin.matchPatterns.some((pattern) => specifier.includes(pattern))
+  );
 }
 
 export function readPluginSpecifiers(config: JsonObject) {
@@ -87,10 +104,7 @@ export function applyRequiredPlugins(config: JsonObject, homeDir: string) {
     .filter((specifier) => specifier.length > 0);
 
   const additionalSpecifiers = existingSpecifiers.filter(
-    (specifier) =>
-      !isAntigravityPlugin(specifier) &&
-      !isMultiAuthPlugin(specifier) &&
-      !isMorphFastApplyPlugin(specifier)
+    (specifier) => !isRequiredPlugin(specifier)
   );
 
   const dedupedAdditional: string[] = [];
@@ -103,6 +117,8 @@ export function applyRequiredPlugins(config: JsonObject, homeDir: string) {
     dedupedAdditional.push(specifier);
   }
 
-  const requiredSpecifiers = buildRequiredPluginSpecifiers(homeDir);
+  const requiredSpecifiers = REQUIRED_PLUGINS.map((plugin) =>
+    plugin.canonicalSpecifier(homeDir)
+  );
   config.plugin = [...requiredSpecifiers, ...dedupedAdditional];
 }

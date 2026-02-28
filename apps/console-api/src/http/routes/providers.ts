@@ -1,29 +1,12 @@
-import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
+import type { FastifyInstance, FastifyRequest } from "fastify";
 import { sendData } from "../envelope.js";
 import { wrapRoute } from "../error-handler.js";
-import {
-  ProfileService,
-  ProfileServiceError
-} from "../../modules/profile/application/profile-service.js";
-import { isJsonObject } from "../../utils/validation.js";
-
-function parseUpdateBody(body: unknown) {
-  if (!isJsonObject(body) || !isJsonObject(body.definition)) {
-    throw new ProfileServiceError(
-      "INVALID_BODY",
-      "Field 'definition' must be a JSON object.",
-      400
-    );
-  }
-
-  return {
-    definition: body.definition
-  };
-}
+import type { IProviderService } from "../../modules/profile/domain/service-interfaces.js";
+import { parseUpdateBody } from "../../utils/validation.js";
 
 export async function registerProviderRoutes(
   app: FastifyInstance,
-  profileService: ProfileService
+  profileService: IProviderService
 ) {
   app.get(
     "/api/v1/providers",
@@ -38,10 +21,10 @@ export async function registerProviderRoutes(
     wrapRoute<FastifyRequest<{ Params: { providerKey: string } }>>(
       app,
       async (request, reply) => {
-        const payload = parseUpdateBody(request.body);
+        const { definition } = parseUpdateBody(request.body);
         const result = await profileService.updateProvider(
           request.params.providerKey,
-          payload.definition
+          definition
         );
         return sendData(reply, request, 200, result);
       }

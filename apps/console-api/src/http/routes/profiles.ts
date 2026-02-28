@@ -1,48 +1,19 @@
 import type { FastifyInstance } from "fastify";
 import { sendData } from "../envelope.js";
 import { wrapRoute } from "../error-handler.js";
+import type { IProfileCoreService } from "../../modules/profile/domain/service-interfaces.js";
 import {
-  ProfileService,
-  ProfileServiceError
-} from "../../modules/profile/application/profile-service.js";
-import { isJsonObject } from "../../utils/validation.js";
+  requireJsonBody,
+  requireOptionalJsonField,
+  requireOptionalStringField
+} from "../../utils/validation.js";
 
 function extractSaveBody(request: { body: unknown }) {
-  if (!isJsonObject(request.body)) {
-    throw new ProfileServiceError(
-      "INVALID_BODY",
-      "Request body must be a JSON object.",
-      400
-    );
-  }
+  const obj = requireJsonBody(request.body);
 
-  const opencodeJson = request.body.opencodeJson;
-  const ohMyOpencodeJson = request.body.ohMyOpencodeJson;
-  const agentsMarkdown = request.body.agentsMarkdown;
-
-  if (opencodeJson !== undefined && !isJsonObject(opencodeJson)) {
-    throw new ProfileServiceError(
-      "INVALID_BODY",
-      "Field 'opencodeJson' must be a JSON object.",
-      400
-    );
-  }
-
-  if (ohMyOpencodeJson !== undefined && !isJsonObject(ohMyOpencodeJson)) {
-    throw new ProfileServiceError(
-      "INVALID_BODY",
-      "Field 'ohMyOpencodeJson' must be a JSON object.",
-      400
-    );
-  }
-
-  if (agentsMarkdown !== undefined && typeof agentsMarkdown !== "string") {
-    throw new ProfileServiceError(
-      "INVALID_BODY",
-      "Field 'agentsMarkdown' must be a string.",
-      400
-    );
-  }
+  const opencodeJson = requireOptionalJsonField(obj.opencodeJson, "opencodeJson");
+  const ohMyOpencodeJson = requireOptionalJsonField(obj.ohMyOpencodeJson, "ohMyOpencodeJson");
+  const agentsMarkdown = requireOptionalStringField(obj.agentsMarkdown, "agentsMarkdown");
 
   return {
     opencodeJson,
@@ -53,7 +24,7 @@ function extractSaveBody(request: { body: unknown }) {
 
 export async function registerProfileRoutes(
   app: FastifyInstance,
-  profileService: ProfileService
+  profileService: IProfileCoreService
 ) {
   app.get(
     "/api/v1/profiles",

@@ -52,3 +52,18 @@ export interface ProfileSnapshotRecord {
 export function isJsonObject(value: unknown): value is JsonObject {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
+
+const VALID_KEY_POOLS: ReadonlySet<string> = new Set<AgentKeyPool>([
+  "any",
+  "software",
+  "default"
+]);
+
+/**
+ * Type guard that checks whether a value is a valid AgentKeyPool literal.
+ * Centralises the `value === "any" || "software" || "default"` check that
+ * was previously duplicated across multiple normaliser functions.
+ */
+export function isValidKeyPool(value: unknown): value is AgentKeyPool {
+  return typeof value === "string" && VALID_KEY_POOLS.has(value);
+}

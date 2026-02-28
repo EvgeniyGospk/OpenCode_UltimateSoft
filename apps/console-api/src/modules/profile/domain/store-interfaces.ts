@@ -7,20 +7,39 @@ import type {
 } from "./profile-types.js";
 
 /**
- * Abstract interface for reading/writing profile configuration data.
- * Concrete implementations live in infra/ (e.g. ProfileStore).
+ * Resolves filesystem paths for a given profile directory.
  */
-export interface IProfileStore {
+export interface IProfilePathResolver {
   getManagedPaths(profileDirectoryPath: string): ProfileManagedPaths;
   resolveActiveProfilePath(): Promise<string>;
-  listProfiles(): Promise<ProfileSummary[]>;
+}
+
+/**
+ * Read-only operations on profile data.
+ */
+export interface IProfileReader {
   loadActiveProfile(): Promise<ActiveProfileState>;
+  listProfiles(): Promise<ProfileSummary[]>;
+  readAgentRegistry(profilePath: string): Promise<JsonObject | null>;
+}
+
+/**
+ * Write operations on profile data.
+ */
+export interface IProfileWriter {
   saveOpencodeJson(profilePath: string, nextConfig: JsonObject): Promise<void>;
   saveOhMyOpencodeJson(profilePath: string, nextConfig: JsonObject): Promise<void>;
   saveAgentsMarkdown(profilePath: string, markdown: string): Promise<void>;
-  readAgentRegistry(profilePath: string): Promise<JsonObject | null>;
   saveAgentRegistry(profilePath: string, nextRegistry: JsonObject): Promise<void>;
 }
+
+/**
+ * Combined interface for full profile store access.
+ * Consumers that only need a subset should depend on
+ * IProfilePathResolver, IProfileReader, or IProfileWriter instead.
+ */
+export interface IProfileStore
+  extends IProfilePathResolver, IProfileReader, IProfileWriter {}
 
 /**
  * Abstract interface for managing profile snapshots (backups / restore).

@@ -6,7 +6,7 @@ import { registerBackupRoutes } from "./http/routes/backups.js";
 import { registerHealthRoute } from "./http/routes/health.js";
 import { registerProfileRoutes } from "./http/routes/profiles.js";
 import { registerProviderRoutes } from "./http/routes/providers.js";
-import { createProfileService } from "./modules/profile/application/profile-service.js";
+import { createProfileService } from "./modules/profile/application/composition.js";
 
 export function buildServer(options: FastifyServerOptions = {}) {
   const profileService = createProfileService();

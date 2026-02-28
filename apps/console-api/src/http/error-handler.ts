@@ -1,12 +1,40 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { sendError } from "./envelope.js";
-import { ProfileServiceError } from "../modules/profile/application/profile-service.js";
+
+/**
+ * Shape expected from any service-layer error that the HTTP layer can map
+ * to a structured API response.  Using duck-typing (instead of
+ * `instanceof`) means new error classes in other modules automatically
+ * work without modifying this handler — they just need to expose the
+ * same `code`, `statusCode`, and optional `details` properties.
+ */
+interface ServiceError {
+  code: string;
+  message: string;
+  statusCode: number;
+  details?: Record<string, unknown>;
+}
+
+function isServiceError(error: unknown): error is ServiceError {
+  if (typeof error !== "object" || error === null) return false;
+  const candidate = error as Record<string, unknown>;
+  return (
+    typeof candidate.code === "string" &&
+    typeof candidate.message === "string" &&
+    typeof candidate.statusCode === "number"
+  );
+}
 
 /**
  * Centralized error handler for all API routes.
  *
- * Maps known service errors to structured API responses and
- * falls back to a generic 500 for anything unexpected.
+ * Error mapping strategy:
+ *  1. If the error duck-types as a ServiceError (has `code`, `message`,
+ *     and `statusCode`), we forward those values directly to the client.
+ *     This covers `ProfileServiceError` and any future service errors
+ *     that follow the same shape.
+ *  2. Anything else is treated as an unexpected failure and logged at
+ *     error level; the client receives a generic 500 response.
  */
 export function respondWithError(
   app: FastifyInstance,
@@ -14,7 +42,19 @@ export function respondWithError(
   reply: FastifyReply,
   error: unknown
 ) {
-  if (error instanceof ProfileServiceError) {
+  if (isServiceError(error)) {
+    if (error.statusCode >= 400 && error.statusCode < 500) {
+      app.log.warn(
+        { code: error.code, statusCode: error.statusCode, details: error.details },
+        error.message
+      );
+    } else {
+      app.log.error(
+        { code: error.code, statusCode: error.statusCode, details: error.details },
+        error.message
+      );
+    }
+
     return sendError(reply, request, error.statusCode, {
       code: error.code,
       message: error.message,

@@ -1,5 +1,4 @@
 import { promises as fs } from "node:fs";
-import { homedir } from "node:os";
 import { basename, join, resolve } from "node:path";
 import type {
   ActiveProfileState,
@@ -10,29 +9,13 @@ import type {
 import { isJsonObject } from "../domain/profile-types.js";
 import type { IProfileStore } from "../domain/store-interfaces.js";
 import { atomicWriteText } from "./atomic-writer.js";
-import { isErrnoError } from "./fs-utils.js";
+import { expandHomeDirectory, ignoreEnoent, isErrnoError } from "./fs-utils.js";
 
 const DEFAULT_ACTIVE_PROFILE_DIRECTORY = "~/.config/opencode";
 const DEFAULT_PROFILES_ROOT_DIRECTORY = "~/.config/opencode-profiles";
 
-function expandHomeDirectory(pathValue: string): string {
-  if (pathValue.startsWith("~/")) {
-    return join(homedir(), pathValue.slice(2));
-  }
-
-  return pathValue;
-}
-
 async function readOptionalText(filePath: string): Promise<string | null> {
-  try {
-    return await fs.readFile(filePath, "utf8");
-  } catch (error) {
-    if (isErrnoError(error) && error.code === "ENOENT") {
-      return null;
-    }
-
-    throw error;
-  }
+  return ignoreEnoent(() => fs.readFile(filePath, "utf8"), null);
 }
 
 function parseJsonObject(filePath: string, rawContent: string): JsonObject {
@@ -58,23 +41,20 @@ function serializeJson(value: JsonObject) {
 async function readAgentPrompts(
   agentDirectoryPath: string
 ): Promise<Record<string, string>> {
+  const entries = await ignoreEnoent(
+    () => fs.readdir(agentDirectoryPath, { withFileTypes: true }),
+    [] as import("node:fs").Dirent[]
+  );
+
   const prompts: Record<string, string> = {};
 
-  try {
-    const entries = await fs.readdir(agentDirectoryPath, { withFileTypes: true });
-
-    for (const entry of entries) {
-      if (!entry.isFile() || !entry.name.endsWith(".md")) {
-        continue;
-      }
-
-      const filePath = join(agentDirectoryPath, entry.name);
-      prompts[entry.name] = await fs.readFile(filePath, "utf8");
+  for (const entry of entries) {
+    if (!entry.isFile() || !entry.name.endsWith(".md")) {
+      continue;
     }
-  } catch (error) {
-    if (!isErrnoError(error) || error.code !== "ENOENT") {
-      throw error;
-    }
+
+    const filePath = join(agentDirectoryPath, entry.name);
+    prompts[entry.name] = await fs.readFile(filePath, "utf8");
   }
 
   return prompts;
@@ -138,15 +118,10 @@ export class ProfileStore implements IProfileStore {
     const profilesByPath = new Map<string, ProfileSummary>();
 
     const pushProfile = async (candidatePath: string) => {
-      let resolvedPath = candidatePath;
-
-      try {
-        resolvedPath = await fs.realpath(candidatePath);
-      } catch (error) {
-        if (!isErrnoError(error) || error.code !== "ENOENT") {
-          throw error;
-        }
-      }
+      const resolvedPath = await ignoreEnoent(
+        () => fs.realpath(candidatePath),
+        candidatePath
+      );
 
       const id = basename(resolvedPath);
       profilesByPath.set(resolvedPath, {
@@ -159,22 +134,18 @@ export class ProfileStore implements IProfileStore {
 
     await pushProfile(activePath);
 
-    try {
-      const entries = await fs.readdir(this.profilesRootDirectory, {
-        withFileTypes: true
-      });
+    const entries = await ignoreEnoent(
+      () =>
+        fs.readdir(this.profilesRootDirectory, { withFileTypes: true }),
+      [] as import("node:fs").Dirent[]
+    );
 
-      for (const entry of entries) {
-        if (!entry.isDirectory()) {
-          continue;
-        }
+    for (const entry of entries) {
+      if (!entry.isDirectory()) {
+        continue;
+      }
 
-        await pushProfile(join(this.profilesRootDirectory, entry.name));
-      }
-    } catch (error) {
-      if (!isErrnoError(error) || error.code !== "ENOENT") {
-        throw error;
-      }
+      await pushProfile(join(this.profilesRootDirectory, entry.name));
     }
 
     return Array.from(profilesByPath.values()).sort((left, right) => {

@@ -1,21 +1,12 @@
 import { randomUUID, createHash } from "node:crypto";
 import { promises as fs } from "node:fs";
-import { homedir } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
 import type { ProfileSnapshotRecord } from "../domain/profile-types.js";
-import type { IProfileStore, ISnapshotStore } from "../domain/store-interfaces.js";
+import type { IProfilePathResolver, ISnapshotStore } from "../domain/store-interfaces.js";
 import { atomicWriteText, fsyncDirectory } from "./atomic-writer.js";
-import { isErrnoError } from "./fs-utils.js";
+import { expandHomeDirectory, ignoreEnoent, isErrnoError } from "./fs-utils.js";
 
 const DEFAULT_SNAPSHOTS_ROOT = "~/.local/share/opencode-console/snapshots";
-
-function expandHomeDirectory(pathValue: string): string {
-  if (pathValue.startsWith("~/")) {
-    return join(homedir(), pathValue.slice(2));
-  }
-
-  return pathValue;
-}
 
 function isSnapshotRecord(value: unknown): value is ProfileSnapshotRecord {
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
@@ -38,11 +29,11 @@ interface SnapshotStoreOptions {
 
 export class ProfileSnapshotStore implements ISnapshotStore {
   private readonly snapshotsRoot: string;
-  private readonly profileStore: IProfileStore;
+  private readonly profilePathResolver: IProfilePathResolver;
 
-  constructor(profileStore: IProfileStore, options: SnapshotStoreOptions = {}) {
+  constructor(profilePathResolver: IProfilePathResolver, options: SnapshotStoreOptions = {}) {
     const snapshotsRootFromEnv = process.env.OC_SNAPSHOTS_ROOT;
-    this.profileStore = profileStore;
+    this.profilePathResolver = profilePathResolver;
     this.snapshotsRoot = resolve(
       expandHomeDirectory(
         options.snapshotsRoot ?? snapshotsRootFromEnv ?? DEFAULT_SNAPSHOTS_ROOT
@@ -65,14 +56,10 @@ export class ProfileSnapshotStore implements ISnapshotStore {
     relativePath: string,
     relativePaths: string[]
   ) {
-    try {
+    await ignoreEnoent(async () => {
       await fs.copyFile(sourcePath, destinationPath);
       relativePaths.push(relativePath);
-    } catch (error) {
-      if (!isErrnoError(error) || error.code !== "ENOENT") {
-        throw error;
-      }
-    }
+    }, undefined);
   }
 
   async createSnapshot(
@@ -80,7 +67,7 @@ export class ProfileSnapshotStore implements ISnapshotStore {
     reason: string
   ): Promise<ProfileSnapshotRecord> {
     const resolvedProfilePath = await fs.realpath(profilePath);
-    const managedPaths = this.profileStore.getManagedPaths(resolvedProfilePath);
+    const managedPaths = this.profilePathResolver.getManagedPaths(resolvedProfilePath);
     const profileBucketPath = this.getProfileBucketPath(resolvedProfilePath);
     const snapshotId = `${Date.now()}-${randomUUID().slice(0, 8)}`;
     const snapshotPath = join(profileBucketPath, snapshotId);
@@ -114,16 +101,12 @@ export class ProfileSnapshotStore implements ISnapshotStore {
         relativePaths
       );
 
-      try {
+      await ignoreEnoent(async () => {
         await fs.cp(managedPaths.agentDirPath, join(snapshotPath, "agent"), {
           recursive: true
         });
         relativePaths.push("agent");
-      } catch (error) {
-        if (!isErrnoError(error) || error.code !== "ENOENT") {
-          throw error;
-        }
-      }
+      }, undefined);
 
       const snapshotRecord: ProfileSnapshotRecord = {
         id: snapshotId,
@@ -149,19 +132,14 @@ export class ProfileSnapshotStore implements ISnapshotStore {
     const resolvedProfilePath = await fs.realpath(profilePath);
     const profileBucketPath = this.getProfileBucketPath(resolvedProfilePath);
 
-    let entries;
-    try {
-      entries = await fs.readdir(profileBucketPath, {
-        encoding: "utf8",
-        withFileTypes: true
-      });
-    } catch (error) {
-      if (isErrnoError(error) && error.code === "ENOENT") {
-        return [];
-      }
-
-      throw error;
-    }
+    const entries = await ignoreEnoent(
+      () =>
+        fs.readdir(profileBucketPath, {
+          encoding: "utf8",
+          withFileTypes: true
+        }),
+      [] as import("node:fs").Dirent[]
+    );
 
     const snapshots: ProfileSnapshotRecord[] = [];
 
@@ -171,16 +149,13 @@ export class ProfileSnapshotStore implements ISnapshotStore {
       }
 
       const manifestPath = join(profileBucketPath, entry.name, "manifest.json");
-      let manifestRaw: string;
+      const manifestRaw = await ignoreEnoent(
+        () => fs.readFile(manifestPath, "utf8"),
+        null
+      );
 
-      try {
-        manifestRaw = await fs.readFile(manifestPath, "utf8");
-      } catch (error) {
-        if (isErrnoError(error) && error.code === "ENOENT") {
-          continue;
-        }
-
-        throw error;
+      if (manifestRaw === null) {
+        continue;
       }
 
       let parsed: unknown;
@@ -265,7 +240,7 @@ export class ProfileSnapshotStore implements ISnapshotStore {
       throw new Error(`Snapshot ${snapshotId} does not belong to active profile`);
     }
 
-    const managedPaths = this.profileStore.getManagedPaths(resolvedProfilePath);
+    const managedPaths = this.profilePathResolver.getManagedPaths(resolvedProfilePath);
     const opencodeSnapshotPath = join(snapshotPath, "opencode.json");
     const ohMySnapshotPath = join(snapshotPath, "oh-my-opencode.json");
     const agentsSnapshotPath = join(snapshotPath, "AGENTS.md");
@@ -274,42 +249,28 @@ export class ProfileSnapshotStore implements ISnapshotStore {
 
     await this.restoreTextFile(opencodeSnapshotPath, managedPaths.opencodePath);
 
-    try {
-      await this.restoreTextFile(
-        ohMySnapshotPath,
-        managedPaths.ohMyOpencodePath
-      );
-    } catch (error) {
-      if (!isErrnoError(error) || error.code !== "ENOENT") {
-        throw error;
-      }
-    }
+    await ignoreEnoent(
+      () => this.restoreTextFile(ohMySnapshotPath, managedPaths.ohMyOpencodePath),
+      undefined
+    );
 
-    try {
-      await this.restoreTextFile(agentsSnapshotPath, managedPaths.agentsPath);
-    } catch (error) {
-      if (!isErrnoError(error) || error.code !== "ENOENT") {
-        throw error;
-      }
-    }
+    await ignoreEnoent(
+      () => this.restoreTextFile(agentsSnapshotPath, managedPaths.agentsPath),
+      undefined
+    );
 
-    try {
-      await this.restoreTextFile(
-        agentRegistrySnapshotPath,
-        managedPaths.agentRegistryPath
-      );
-    } catch (error) {
-      if (!isErrnoError(error) || error.code !== "ENOENT") {
-        throw error;
-      }
-    }
+    await ignoreEnoent(
+      () =>
+        this.restoreTextFile(
+          agentRegistrySnapshotPath,
+          managedPaths.agentRegistryPath
+        ),
+      undefined
+    );
 
-    try {
-      await this.restoreDirectory(promptsSnapshotPath, managedPaths.agentDirPath);
-    } catch (error) {
-      if (!isErrnoError(error) || error.code !== "ENOENT") {
-        throw error;
-      }
-    }
+    await ignoreEnoent(
+      () => this.restoreDirectory(promptsSnapshotPath, managedPaths.agentDirPath),
+      undefined
+    );
   }
 }

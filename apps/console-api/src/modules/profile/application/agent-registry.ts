@@ -1,17 +1,23 @@
-import type { AgentKeyPool, JsonObject } from "../domain/profile-types.js";
+import type { AgentKeyPool, JsonObject, TaskExposureMode } from "../domain/profile-types.js";
 import { isJsonObject } from "../domain/profile-types.js";
 import {
   applyRequiredPlugins,
-  readPluginSpecifiers,
   resolveHomeDir,
   rewriteLegacyPathsInValue
 } from "./plugin-resolver.js";
 import {
-  projectRegistryToAgentsMarkdown,
-  readManagedBlock
-} from "./markdown-renderer.js";
-
-export type TaskExposureMode = "off" | "direct" | "alias";
+  applyDefinitionForProjection,
+  normalizeDefinitionForRegistry,
+  normalizeDefinitionForTaskExposure
+} from "./model-normalizer.js";
+import {
+  AGENT_KEY_PATTERN,
+  inferTaskMetadataForKey,
+  normalizeKeyPool,
+  normalizeTaskExposure,
+  readBuildTaskSection,
+  toIsoString
+} from "./validation-helpers.js";
 
 export interface AgentRegistryEntry {
   key: string;
@@ -34,321 +40,28 @@ interface ResolvedAgentRegistry {
   source: "file" | "bootstrap";
 }
 
-const AGENT_KEY_PATTERN = /^[a-z0-9][a-z0-9._-]*$/i;
-const DEFAULT_TASK_DIRECT_KEYS = new Set([
-  "general",
-  "explore",
-  "sonnet",
-  "opus",
-  "codex-search",
-  "gemini-analyst",
-  "designer"
-]);
-const DEFAULT_TASK_ALIASES: Record<string, string> = {
-  "codex-websearch": "codex-search"
-};
+export function readAllowedBuildTaskKeys(config: JsonObject): Set<string> {
+  const task = readBuildTaskSection(config);
+  if (!task) return new Set<string>();
 
-const MODEL_POOL_SUFFIXES = {
-  software: "-pool-soft",
-  default: "-pool-default"
-} as const;
-const LEGACY_MODEL_POOL_SUFFIXES = {
-  software: "-soft",
-  default: "-default"
-} as const;
-const TASK_REASONING_SUFFIXES = [
-  "-extra-high",
-  "-extra_high",
-  "-high",
-  "-medium",
-  "-low"
-] as const;
-
-function toIsoString(value: unknown, fallback: string) {
-  if (typeof value !== "string") {
-    return fallback;
-  }
-
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) {
-    return fallback;
-  }
-
-  return parsed.toISOString();
-}
-
-function normalizeTaskExposure(value: unknown): TaskExposureMode {
-  if (value === "direct" || value === "alias" || value === "off") {
-    return value;
-  }
-
-  return "off";
-}
-
-function normalizeKeyPool(value: unknown): AgentKeyPool | null {
-  if (value === "any" || value === "software" || value === "default") {
-    return value;
-  }
-
-  return null;
-}
-
-function splitModelRef(model: string) {
-  const slashIndex = model.indexOf("/");
-  if (slashIndex < 0) {
-    return {
-      provider: "",
-      modelId: model,
-      hasProvider: false
-    };
-  }
-
-  return {
-    provider: model.slice(0, slashIndex),
-    modelId: model.slice(slashIndex + 1),
-    hasProvider: true
-  };
-}
-
-function joinModelRef(provider: string, modelId: string, hasProvider: boolean) {
-  return hasProvider ? `${provider}/${modelId}` : modelId;
-}
-
-function inferPoolFromModelId(modelId: string): AgentKeyPool | null {
-  if (modelId.endsWith(MODEL_POOL_SUFFIXES.software)) {
-    return "software";
-  }
-
-  if (modelId.endsWith(MODEL_POOL_SUFFIXES.default)) {
-    return "default";
-  }
-
-  if (modelId.endsWith(LEGACY_MODEL_POOL_SUFFIXES.software)) {
-    return "software";
-  }
-
-  if (modelId.endsWith(LEGACY_MODEL_POOL_SUFFIXES.default)) {
-    return "default";
-  }
-
-  return null;
-}
-
-function stripPoolSuffixFromModelId(modelId: string) {
-  if (modelId.endsWith(MODEL_POOL_SUFFIXES.software)) {
-    return modelId.slice(0, -MODEL_POOL_SUFFIXES.software.length);
-  }
-
-  if (modelId.endsWith(MODEL_POOL_SUFFIXES.default)) {
-    return modelId.slice(0, -MODEL_POOL_SUFFIXES.default.length);
-  }
-
-  if (modelId.endsWith(LEGACY_MODEL_POOL_SUFFIXES.software)) {
-    return modelId.slice(0, -LEGACY_MODEL_POOL_SUFFIXES.software.length);
-  }
-
-  if (modelId.endsWith(LEGACY_MODEL_POOL_SUFFIXES.default)) {
-    return modelId.slice(0, -LEGACY_MODEL_POOL_SUFFIXES.default.length);
-  }
-
-  return modelId;
-}
-
-function stripTaskReasoningSuffixFromModelId(modelId: string) {
-  const lower = modelId.toLowerCase();
-  for (const suffix of TASK_REASONING_SUFFIXES) {
-    if (lower.endsWith(suffix)) {
-      return modelId.slice(0, -suffix.length);
-    }
-  }
-
-  return modelId;
-}
-
-function isCodexOpenAiModel(model: string): boolean {
-  const parsed = splitModelRef(model);
-  if (parsed.provider !== "openai") {
-    return false;
-  }
-
-  return parsed.modelId.toLowerCase().includes("codex");
-}
-
-function normalizeDefinitionForTaskExposure(
-  definition: JsonObject,
-  taskExposure: TaskExposureMode
-) {
-  const nextDefinition = structuredClone(definition);
-  if (taskExposure === "off") {
-    return nextDefinition;
-  }
-
-  const rawModel = nextDefinition.model;
-  if (typeof rawModel !== "string" || !isCodexOpenAiModel(rawModel)) {
-    return nextDefinition;
-  }
-
-  const parsed = splitModelRef(rawModel);
-  const normalizedModelId = stripTaskReasoningSuffixFromModelId(
-    stripPoolSuffixFromModelId(parsed.modelId)
+  return new Set(
+    Object.entries(task)
+      .filter(([key, value]) => value === "allow" && key !== "*")
+      .map(([key]) => key)
   );
-
-  nextDefinition.model = joinModelRef(
-    parsed.provider,
-    normalizedModelId,
-    parsed.hasProvider
-  );
-
-  return nextDefinition;
 }
 
-function normalizeDefinitionForRegistry(definition: JsonObject) {
-  const nextDefinition = structuredClone(definition);
-  const rawModel = nextDefinition.model;
-
-  if (typeof rawModel !== "string") {
-    return {
-      definition: nextDefinition,
-      inferredKeyPool: "any" as AgentKeyPool
-    };
-  }
-
-  if (!isCodexOpenAiModel(rawModel)) {
-    return {
-      definition: nextDefinition,
-      inferredKeyPool: "any" as AgentKeyPool
-    };
-  }
-
-  const parsed = splitModelRef(rawModel);
-  const inferredFromModel = inferPoolFromModelId(parsed.modelId) ?? "any";
-  const strippedModelId = stripPoolSuffixFromModelId(parsed.modelId);
-  nextDefinition.model = joinModelRef(
-    parsed.provider,
-    strippedModelId,
-    parsed.hasProvider
-  );
-
-  return {
-    definition: nextDefinition,
-    inferredKeyPool: inferredFromModel
-  };
-}
-
-function applyDefinitionForProjection(
-  definition: JsonObject,
-  keyPool: AgentKeyPool,
-  taskExposure: TaskExposureMode
-): JsonObject {
-  const nextDefinition = normalizeDefinitionForTaskExposure(definition, taskExposure);
-  const rawModel = nextDefinition.model;
-
-  if (typeof rawModel !== "string" || !isCodexOpenAiModel(rawModel)) {
-    return nextDefinition;
-  }
-
-  if (taskExposure !== "off") {
-    return nextDefinition;
-  }
-
-  const parsed = splitModelRef(rawModel);
-  const baseModelId = stripPoolSuffixFromModelId(parsed.modelId);
-  const suffix =
-    taskExposure === "off"
-      ? keyPool === "software"
-        ? MODEL_POOL_SUFFIXES.software
-        : keyPool === "default"
-          ? MODEL_POOL_SUFFIXES.default
-          : ""
-      : "";
-
-  nextDefinition.model = joinModelRef(
-    parsed.provider,
-    `${baseModelId}${suffix}`,
-    parsed.hasProvider
-  );
-
-  return nextDefinition;
-}
-
-function readAllowedBuildTaskKeys(config: JsonObject): Set<string> {
-  const allowed = new Set<string>();
-  const agentSection = config.agent;
-
-  if (!isJsonObject(agentSection)) {
-    return allowed;
-  }
-
-  const buildDefinition = agentSection.build;
-  if (!isJsonObject(buildDefinition)) {
-    return allowed;
-  }
-
-  const permission = buildDefinition.permission;
-  if (!isJsonObject(permission)) {
-    return allowed;
-  }
-
-  const task = permission.task;
-  if (!isJsonObject(task)) {
-    return allowed;
-  }
-
-  for (const [key, value] of Object.entries(task)) {
-    if (value !== "allow") {
-      continue;
-    }
-
-    if (key === "*") {
-      continue;
-    }
-
-    allowed.add(key);
-  }
-
-  return allowed;
-}
-
-function inferTaskMetadataForKey(key: string, allowedBuildTaskKeys: Set<string>) {
-  if (key in DEFAULT_TASK_ALIASES) {
-    return {
-      taskExposure: "alias" as const,
-      taskAlias: DEFAULT_TASK_ALIASES[key]
-    };
-  }
-
-  if (allowedBuildTaskKeys.has(key) || DEFAULT_TASK_DIRECT_KEYS.has(key)) {
-    return {
-      taskExposure: "direct" as const
-    };
-  }
-
-  return {
-    taskExposure: "off" as const
-  };
-}
-
-function normalizeAgentEntry(
+export function normalizeAgentEntry(
   value: unknown,
   now: string,
   allowedBuildTaskKeys: Set<string>
 ): AgentRegistryEntry | null {
-  if (!isJsonObject(value)) {
-    return null;
-  }
-
-  if (typeof value.key !== "string") {
-    return null;
-  }
+  if (!isJsonObject(value)) return null;
+  if (typeof value.key !== "string") return null;
 
   const key = value.key.trim();
-  if (!AGENT_KEY_PATTERN.test(key)) {
-    return null;
-  }
-
-  if (!isJsonObject(value.definition)) {
-    return null;
-  }
+  if (!AGENT_KEY_PATTERN.test(key)) return null;
+  if (!isJsonObject(value.definition)) return null;
 
   const normalizedDefinition = normalizeDefinitionForRegistry(value.definition);
   const createdAt = toIsoString(value.createdAt, now);
@@ -553,72 +266,8 @@ export function projectRegistryToOpencodeConfig(
   return nextConfig;
 }
 
-function readCurrentTaskMap(opencodeJson: JsonObject): JsonObject {
-  const agentSection = opencodeJson.agent;
-  if (!isJsonObject(agentSection)) {
-    return {};
-  }
-
-  const buildDefinition = agentSection.build;
-  if (!isJsonObject(buildDefinition)) {
-    return {};
-  }
-
-  const permission = buildDefinition.permission;
-  if (!isJsonObject(permission)) {
-    return {};
-  }
-
-  return isJsonObject(permission.task) ? permission.task : {};
-}
-
-function readPluginList(opencodeJson: JsonObject) {
-  return readPluginSpecifiers(opencodeJson);
-}
-
 export { projectRegistryToAgentsMarkdown } from "./markdown-renderer.js";
-
-export function evaluateRegistryDrift(
-  opencodeJson: JsonObject,
-  agentsMarkdown: string,
-  registry: AgentRegistryDocument
-) {
-  const issues: string[] = [];
-  const projectedConfig = projectRegistryToOpencodeConfig(opencodeJson, registry);
-  const projectedMarkdown = projectRegistryToAgentsMarkdown(agentsMarkdown, registry);
-
-  const currentAgents = isJsonObject(opencodeJson.agent) ? opencodeJson.agent : {};
-  const projectedAgents = isJsonObject(projectedConfig.agent)
-    ? projectedConfig.agent
-    : {};
-
-  if (JSON.stringify(currentAgents) !== JSON.stringify(projectedAgents)) {
-    issues.push("opencode.json agent map differs from registry projection");
-  }
-
-  const currentTaskMap = readCurrentTaskMap(opencodeJson);
-  const projectedTaskMap = readCurrentTaskMap(projectedConfig);
-  if (JSON.stringify(currentTaskMap) !== JSON.stringify(projectedTaskMap)) {
-    issues.push("build task permissions differ from registry projection");
-  }
-
-  const currentPlugins = readPluginList(opencodeJson);
-  const projectedPlugins = readPluginList(projectedConfig);
-  if (JSON.stringify(currentPlugins) !== JSON.stringify(projectedPlugins)) {
-    issues.push("opencode.json plugin list differs from registry projection");
-  }
-
-  const currentBlock = readManagedBlock(agentsMarkdown);
-  const projectedBlock = readManagedBlock(projectedMarkdown);
-  if (currentBlock !== projectedBlock) {
-    issues.push("AGENTS.md managed routing block differs from registry projection");
-  }
-
-  return {
-    inSync: issues.length === 0,
-    issues
-  };
-}
+export { evaluateRegistryDrift } from "./drift-evaluator.js";
 
 export function toRegistryJsonObject(registry: AgentRegistryDocument): JsonObject {
   return {
