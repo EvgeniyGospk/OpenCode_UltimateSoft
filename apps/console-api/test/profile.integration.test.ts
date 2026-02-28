@@ -83,7 +83,7 @@ afterEach(async () => {
 
 describe("profile routes", () => {
   it("supports active profile read and agents/providers mutation with snapshots", async () => {
-    app = buildServer({ logger: false });
+    app = buildServer({ logger: false, jobsDbPath: ":memory:" });
 
     const activeProfileResponse = await app.inject({
       method: "GET",
@@ -269,7 +269,7 @@ describe("profile routes", () => {
   });
 
   it("restores older snapshot state", async () => {
-    app = buildServer({ logger: false });
+    app = buildServer({ logger: false, jobsDbPath: ":memory:" });
 
     const baselineUpdate = await app.inject({
       method: "PUT",

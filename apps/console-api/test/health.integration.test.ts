@@ -12,7 +12,7 @@ afterEach(async () => {
 
 describe("GET /api/v1/health", () => {
   it("returns a health envelope with correlation headers", async () => {
-    app = buildServer({ logger: false });
+    app = buildServer({ logger: false, jobsDbPath: ":memory:" });
 
     const response = await app.inject({
       method: "GET",

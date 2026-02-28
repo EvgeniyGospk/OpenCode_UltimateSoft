@@ -222,6 +222,101 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/EnvelopeProfileMutation'
+  /api/v1/jobs:
+    get:
+      operationId: listJobs
+      summary: List all job records
+      responses:
+        '200':
+          description: Jobs list response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EnvelopeJobsList'
+    post:
+      operationId: createJob
+      summary: Create a new job
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateJobRequest'
+      responses:
+        '201':
+          description: Job created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EnvelopeJobMutation'
+  /api/v1/jobs/{jobId}:
+    parameters:
+      - in: path
+        name: jobId
+        required: true
+        schema:
+          type: string
+    get:
+      operationId: getJob
+      summary: Get a single job record by ID
+      responses:
+        '200':
+          description: Job detail response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EnvelopeJobDetail'
+  /api/v1/jobs/{jobId}/logs:
+    parameters:
+      - in: path
+        name: jobId
+        required: true
+        schema:
+          type: string
+    get:
+      operationId: getJobLogs
+      summary: Get log entries for a job
+      responses:
+        '200':
+          description: Job logs response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EnvelopeJobLogs'
+  /api/v1/jobs/{jobId}/cancel:
+    parameters:
+      - in: path
+        name: jobId
+        required: true
+        schema:
+          type: string
+    post:
+      operationId: cancelJob
+      summary: Cancel a pending or running job
+      responses:
+        '200':
+          description: Job cancelled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EnvelopeJobMutation'
+  /api/v1/jobs/{jobId}/retry:
+    parameters:
+      - in: path
+        name: jobId
+        required: true
+        schema:
+          type: string
+    post:
+      operationId: retryJob
+      summary: Retry a failed or cancelled job
+      responses:
+        '201':
+          description: Job retried
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EnvelopeJobMutation'
 components:
   schemas:
     Error:
@@ -544,6 +639,145 @@ components:
           type: string
         data:
           $ref: '#/components/schemas/AgentSyncStatusPayload'
+        error:
+          anyOf:
+            - $ref: '#/components/schemas/Error'
+            - type: 'null'
+    JobStatus:
+      type: string
+      enum: [pending, running, success, failed, cancelled]
+    JobType:
+      type: string
+      enum: [smoke]
+    JobRecord:
+      type: object
+      required: [id, type, status, agentKey, prompt, createdAt]
+      properties:
+        id:
+          type: string
+        type:
+          $ref: '#/components/schemas/JobType'
+        status:
+          $ref: '#/components/schemas/JobStatus'
+        agentKey:
+          type: string
+        prompt:
+          type: string
+        createdAt:
+          type: string
+        startedAt:
+          type: string
+        finishedAt:
+          type: string
+        exitCode:
+          type: integer
+        error:
+          type: string
+    JobLogEntry:
+      type: object
+      required: [id, jobId, timestamp, stream, line]
+      properties:
+        id:
+          type: string
+        jobId:
+          type: string
+        timestamp:
+          type: string
+        stream:
+          type: string
+          enum: [stdout, stderr]
+        line:
+          type: string
+    CreateJobRequest:
+      type: object
+      required: [type, agentKey, prompt]
+      properties:
+        type:
+          $ref: '#/components/schemas/JobType'
+        agentKey:
+          type: string
+        prompt:
+          type: string
+    JobsListPayload:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/JobRecord'
+    JobDetailPayload:
+      type: object
+      required: [job]
+      properties:
+        job:
+          $ref: '#/components/schemas/JobRecord'
+    JobLogsPayload:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/JobLogEntry'
+    JobMutationPayload:
+      type: object
+      required: [job]
+      properties:
+        job:
+          $ref: '#/components/schemas/JobRecord'
+    EnvelopeJobsList:
+      type: object
+      required: [requestId, traceId, data, error]
+      properties:
+        requestId:
+          type: string
+        traceId:
+          type: string
+        data:
+          $ref: '#/components/schemas/JobsListPayload'
+        error:
+          anyOf:
+            - $ref: '#/components/schemas/Error'
+            - type: 'null'
+    EnvelopeJobDetail:
+      type: object
+      required: [requestId, traceId, data, error]
+      properties:
+        requestId:
+          type: string
+        traceId:
+          type: string
+        data:
+          $ref: '#/components/schemas/JobDetailPayload'
+        error:
+          anyOf:
+            - $ref: '#/components/schemas/Error'
+            - type: 'null'
+    EnvelopeJobLogs:
+      type: object
+      required: [requestId, traceId, data, error]
+      properties:
+        requestId:
+          type: string
+        traceId:
+          type: string
+        data:
+          $ref: '#/components/schemas/JobLogsPayload'
+        error:
+          anyOf:
+            - $ref: '#/components/schemas/Error'
+            - type: 'null'
+    EnvelopeJobMutation:
+      type: object
+      required: [requestId, traceId, data, error]
+      properties:
+        requestId:
+          type: string
+        traceId:
+          type: string
+        data:
+          $ref: '#/components/schemas/JobMutationPayload'
         error:
           anyOf:
             - $ref: '#/components/schemas/Error'

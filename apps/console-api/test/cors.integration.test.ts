@@ -12,7 +12,7 @@ afterEach(async () => {
 
 describe("CORS preflight", () => {
   it("allows PUT and DELETE for browser preflight requests", async () => {
-    app = buildServer({ logger: false });
+    app = buildServer({ logger: false, jobsDbPath: ":memory:" });
 
     const response = await app.inject({
       method: "OPTIONS",

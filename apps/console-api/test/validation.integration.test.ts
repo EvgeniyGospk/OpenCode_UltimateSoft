@@ -47,7 +47,7 @@ beforeEach(async () => {
   previousOcProfile = process.env.OC_PROFILE ?? "";
   previousSnapshotsRoot = process.env.OC_SNAPSHOTS_ROOT ?? "";
   await createProfileFixture();
-  app = buildServer({ logger: false });
+  app = buildServer({ logger: false, jobsDbPath: ":memory:" });
 });
 
 afterEach(async () => {
