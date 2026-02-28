@@ -219,6 +219,100 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/jobs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List all job records */
+        get: operations["listJobs"];
+        put?: never;
+        /** Create a new job */
+        post: operations["createJob"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/jobs/{jobId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                jobId: string;
+            };
+            cookie?: never;
+        };
+        /** Get a single job record by ID */
+        get: operations["getJob"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/jobs/{jobId}/logs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                jobId: string;
+            };
+            cookie?: never;
+        };
+        /** Get log entries for a job */
+        get: operations["getJobLogs"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/jobs/{jobId}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                jobId: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Cancel a pending or running job */
+        post: operations["cancelJob"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/jobs/{jobId}/retry": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                jobId: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Retry a failed or cancelled job */
+        post: operations["retryJob"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -372,6 +466,65 @@ export interface components {
             requestId: string;
             traceId: string;
             data: components["schemas"]["AgentSyncStatusPayload"];
+            error: components["schemas"]["Error"] | null;
+        };
+        /** @enum {string} */
+        JobStatus: "pending" | "running" | "success" | "failed" | "cancelled";
+        /** @enum {string} */
+        JobType: "smoke";
+        JobRecord: {
+            id: string;
+            type: components["schemas"]["JobType"];
+            status: components["schemas"]["JobStatus"];
+            agentKey: string;
+            prompt: string;
+            createdAt: string;
+            startedAt: string | null;
+            finishedAt: string | null;
+            exitCode: number | null;
+            error: string | null;
+        };
+        JobLogEntry: {
+            id: number;
+            jobId: string;
+            timestamp: string;
+            /** @enum {string} */
+            stream: "stdout" | "stderr";
+            line: string;
+        };
+        CreateJobRequest: {
+            type: components["schemas"]["JobType"];
+            agentKey: string;
+            prompt: string;
+        };
+        JobsListPayload: {
+            items: components["schemas"]["JobRecord"][];
+        };
+        JobLogsPayload: {
+            items: components["schemas"]["JobLogEntry"][];
+        };
+        EnvelopeJobsList: {
+            requestId: string;
+            traceId: string;
+            data: components["schemas"]["JobsListPayload"];
+            error: components["schemas"]["Error"] | null;
+        };
+        EnvelopeJobDetail: {
+            requestId: string;
+            traceId: string;
+            data: components["schemas"]["JobRecord"];
+            error: components["schemas"]["Error"] | null;
+        };
+        EnvelopeJobLogs: {
+            requestId: string;
+            traceId: string;
+            data: components["schemas"]["JobLogsPayload"];
+            error: components["schemas"]["Error"] | null;
+        };
+        EnvelopeJobMutation: {
+            requestId: string;
+            traceId: string;
+            data: components["schemas"]["JobRecord"];
             error: components["schemas"]["Error"] | null;
         };
     };
@@ -709,6 +862,138 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["EnvelopeProfileMutation"];
+                };
+            };
+        };
+    };
+    listJobs: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Jobs list response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EnvelopeJobsList"];
+                };
+            };
+        };
+    };
+    createJob: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateJobRequest"];
+            };
+        };
+        responses: {
+            /** @description Job created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EnvelopeJobMutation"];
+                };
+            };
+        };
+    };
+    getJob: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                jobId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Job detail response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EnvelopeJobDetail"];
+                };
+            };
+        };
+    };
+    getJobLogs: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                jobId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Job logs response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EnvelopeJobLogs"];
+                };
+            };
+        };
+    };
+    cancelJob: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                jobId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Job cancelled */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EnvelopeJobMutation"];
+                };
+            };
+        };
+    };
+    retryJob: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                jobId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Job retried */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EnvelopeJobMutation"];
                 };
             };
         };

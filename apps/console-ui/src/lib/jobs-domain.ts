@@ -26,14 +26,14 @@ export interface JobRecord {
   agentKey: string;
   prompt: string;
   createdAt: string;
-  startedAt?: string;
-  finishedAt?: string;
-  exitCode?: number;
-  error?: string;
+  startedAt: string | null;
+  finishedAt: string | null;
+  exitCode: number | null;
+  error: string | null;
 }
 
 export interface JobLogEntry {
-  id: string;
+  id: number;
   jobId: string;
   timestamp: string;
   stream: LogStream;
@@ -64,7 +64,7 @@ export interface JobsListEnvelope {
 export interface JobDetailEnvelope {
   requestId: string;
   traceId: string;
-  data: { job: JobRecord };
+  data: JobRecord;
   error: { code: string; message: string; details?: Record<string, unknown> } | null;
 }
 
@@ -78,7 +78,7 @@ export interface JobLogsEnvelope {
 export interface JobMutationEnvelope {
   requestId: string;
   traceId: string;
-  data: { job: JobRecord };
+  data: JobRecord;
   error: { code: string; message: string; details?: Record<string, unknown> } | null;
 }
 
@@ -115,7 +115,7 @@ export function getStatusLabel(status: JobStatus): string {
  * If `end` is missing, uses the current time (for running jobs).
  * If `start` is missing, returns "—".
  */
-export function formatDuration(start?: string, end?: string): string {
+export function formatDuration(start: string | null, end: string | null): string {
   if (!start) {
     return "\u2014";
   }

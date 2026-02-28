@@ -651,7 +651,7 @@ components:
       enum: [smoke]
     JobRecord:
       type: object
-      required: [id, type, status, agentKey, prompt, createdAt]
+      required: [id, type, status, agentKey, prompt, createdAt, startedAt, finishedAt, exitCode, error]
       properties:
         id:
           type: string
@@ -666,19 +666,27 @@ components:
         createdAt:
           type: string
         startedAt:
-          type: string
+          anyOf:
+            - type: string
+            - type: 'null'
         finishedAt:
-          type: string
+          anyOf:
+            - type: string
+            - type: 'null'
         exitCode:
-          type: integer
+          anyOf:
+            - type: integer
+            - type: 'null'
         error:
-          type: string
+          anyOf:
+            - type: string
+            - type: 'null'
     JobLogEntry:
       type: object
       required: [id, jobId, timestamp, stream, line]
       properties:
         id:
-          type: string
+          type: integer
         jobId:
           type: string
         timestamp:
@@ -706,12 +714,6 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/JobRecord'
-    JobDetailPayload:
-      type: object
-      required: [job]
-      properties:
-        job:
-          $ref: '#/components/schemas/JobRecord'
     JobLogsPayload:
       type: object
       required: [items]
@@ -720,12 +722,6 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/JobLogEntry'
-    JobMutationPayload:
-      type: object
-      required: [job]
-      properties:
-        job:
-          $ref: '#/components/schemas/JobRecord'
     EnvelopeJobsList:
       type: object
       required: [requestId, traceId, data, error]
@@ -749,7 +745,7 @@ components:
         traceId:
           type: string
         data:
-          $ref: '#/components/schemas/JobDetailPayload'
+          $ref: '#/components/schemas/JobRecord'
         error:
           anyOf:
             - $ref: '#/components/schemas/Error'
@@ -777,7 +773,7 @@ components:
         traceId:
           type: string
         data:
-          $ref: '#/components/schemas/JobMutationPayload'
+          $ref: '#/components/schemas/JobRecord'
         error:
           anyOf:
             - $ref: '#/components/schemas/Error'

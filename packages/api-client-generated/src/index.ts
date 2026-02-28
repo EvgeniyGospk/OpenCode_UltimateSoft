@@ -17,12 +17,21 @@ export type ProvidersEnvelope =
   paths["/api/v1/providers"]["get"]["responses"]["200"]["content"]["application/json"];
 export type BackupsEnvelope =
   paths["/api/v1/backups"]["get"]["responses"]["200"]["content"]["application/json"];
+export type JobsEnvelope =
+  paths["/api/v1/jobs"]["get"]["responses"]["200"]["content"]["application/json"];
+export type JobDetailEnvelope =
+  paths["/api/v1/jobs/{jobId}"]["get"]["responses"]["200"]["content"]["application/json"];
+export type JobLogsEnvelope =
+  paths["/api/v1/jobs/{jobId}/logs"]["get"]["responses"]["200"]["content"]["application/json"];
+export type JobMutationEnvelope =
+  paths["/api/v1/jobs/{jobId}/cancel"]["post"]["responses"]["200"]["content"]["application/json"];
 
 export type SaveActiveProfileRequest = components["schemas"]["SaveActiveProfileRequest"];
 export type CreateAgentRequest = components["schemas"]["CreateAgentRequest"];
 export type UpdateAgentRequest = components["schemas"]["UpdateAgentRequest"];
 export type UpdateDefinitionRequest = components["schemas"]["UpdateDefinitionRequest"];
 export type RenameAgentRequest = components["schemas"]["RenameAgentRequest"];
+export type CreateJobRequest = components["schemas"]["CreateJobRequest"];
 
 const ACCEPT_JSON = { Accept: "application/json" } as const;
 const JSON_HEADERS = { ...ACCEPT_JSON, "Content-Type": "application/json" } as const;
@@ -216,6 +225,67 @@ export function createApiClient(options: ApiClientOptions = {}) {
           headers: ACCEPT_JSON
         },
         "Restore backup request"
+      );
+    },
+    async listJobs(): Promise<JobsEnvelope> {
+      return requestJson<JobsEnvelope>(
+        "/api/v1/jobs",
+        {
+          method: "GET",
+          headers: ACCEPT_JSON
+        },
+        "Jobs request"
+      );
+    },
+    async createJob(payload: CreateJobRequest): Promise<JobMutationEnvelope> {
+      return requestJson<JobMutationEnvelope>(
+        "/api/v1/jobs",
+        {
+          method: "POST",
+          headers: JSON_HEADERS,
+          body: JSON.stringify(payload)
+        },
+        "Create job request"
+      );
+    },
+    async getJob(jobId: string): Promise<JobDetailEnvelope> {
+      return requestJson<JobDetailEnvelope>(
+        `/api/v1/jobs/${encodeURIComponent(jobId)}`,
+        {
+          method: "GET",
+          headers: ACCEPT_JSON
+        },
+        "Get job request"
+      );
+    },
+    async getJobLogs(jobId: string): Promise<JobLogsEnvelope> {
+      return requestJson<JobLogsEnvelope>(
+        `/api/v1/jobs/${encodeURIComponent(jobId)}/logs`,
+        {
+          method: "GET",
+          headers: ACCEPT_JSON
+        },
+        "Get job logs request"
+      );
+    },
+    async cancelJob(jobId: string): Promise<JobMutationEnvelope> {
+      return requestJson<JobMutationEnvelope>(
+        `/api/v1/jobs/${encodeURIComponent(jobId)}/cancel`,
+        {
+          method: "POST",
+          headers: ACCEPT_JSON
+        },
+        "Cancel job request"
+      );
+    },
+    async retryJob(jobId: string): Promise<JobMutationEnvelope> {
+      return requestJson<JobMutationEnvelope>(
+        `/api/v1/jobs/${encodeURIComponent(jobId)}/retry`,
+        {
+          method: "POST",
+          headers: ACCEPT_JSON
+        },
+        "Retry job request"
       );
     }
   };
