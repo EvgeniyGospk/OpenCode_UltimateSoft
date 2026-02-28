@@ -72,26 +72,64 @@ set +a
 # Обновляем порты после загрузки .env
 API_PORT="${CONSOLE_API_PORT:-4310}"
 
-# ── Проверка свободности портов ──
-check_port() {
+# ── Освобождение занятых портов ──
+free_port() {
   local port="$1" name="$2"
-  if command -v ss >/dev/null 2>&1; then
-    if ss -ltn 2>/dev/null | grep -q ":${port} "; then
-      err "Порт $port уже занят, не могу запустить $name"
-      err "Освободи порт: kill \$(lsof -ti:$port)"
-      exit 1
-    fi
-  elif command -v lsof >/dev/null 2>&1; then
-    if lsof -iTCP:"$port" -sTCP:LISTEN >/dev/null 2>&1; then
-      err "Порт $port уже занят, не могу запустить $name"
-      err "Освободи порт: kill \$(lsof -ti:$port)"
-      exit 1
+  local pids=""
+
+  if command -v lsof >/dev/null 2>&1; then
+    pids=$(lsof -ti TCP:"$port" -sTCP:LISTEN 2>/dev/null || true)
+  elif command -v ss >/dev/null 2>&1; then
+    # ss не даёт PID напрямую без root, пробуем через fuser
+    if command -v fuser >/dev/null 2>&1; then
+      pids=$(fuser "$port/tcp" 2>/dev/null || true)
     fi
   fi
+
+  if [ -z "$pids" ]; then
+    return 0
+  fi
+
+  warn "Порт $port занят ($name) — убиваю процессы: $pids"
+  for pid in $pids; do
+    kill "$pid" 2>/dev/null || true
+  done
+
+  # Ждём до 3 секунд пока порт освободится
+  local waited=0
+  while [ "$waited" -lt 3 ]; do
+    sleep 1
+    waited=$((waited + 1))
+    local still=""
+    if command -v lsof >/dev/null 2>&1; then
+      still=$(lsof -ti TCP:"$port" -sTCP:LISTEN 2>/dev/null || true)
+    fi
+    if [ -z "$still" ]; then
+      ok "Порт $port освобождён"
+      return 0
+    fi
+  done
+
+  # Не помогло — SIGKILL
+  warn "Порт $port не освободился, SIGKILL..."
+  for pid in $pids; do
+    kill -9 "$pid" 2>/dev/null || true
+  done
+  sleep 1
+
+  local final=""
+  if command -v lsof >/dev/null 2>&1; then
+    final=$(lsof -ti TCP:"$port" -sTCP:LISTEN 2>/dev/null || true)
+  fi
+  if [ -n "$final" ]; then
+    err "Не удалось освободить порт $port. Убей вручную: kill -9 $final"
+    exit 1
+  fi
+  ok "Порт $port освобождён (SIGKILL)"
 }
 
-check_port "$API_PORT" "console-api"
-check_port "$UI_PORT"  "console-ui"
+free_port "$API_PORT" "console-api"
+free_port "$UI_PORT"  "console-ui"
 
 # ── Установка зависимостей ──
 install_if_needed() {
