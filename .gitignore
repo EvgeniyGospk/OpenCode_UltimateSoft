@@ -26,3 +26,10 @@ pnpm-debug.log*
 
 tmp/
 temp/
+
+# Runtime artifacts created by console-api at startup
+apps/console-api/opencode.json
+apps/console-api/agents.registry.json
+apps/console-api/oh-my-opencode.json
+apps/console-api/AGENTS.md
+apps/console-api/agent/

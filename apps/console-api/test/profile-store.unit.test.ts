@@ -190,12 +190,19 @@ describe("ProfileStore.loadActiveProfile", () => {
     expect(profile.agentPrompts).toEqual({});
   });
 
-  it("throws when opencode.json is missing", async () => {
+  it("returns empty profile when opencode.json is missing", async () => {
     const profileDir = join(workspaceRoot, "no-opencode-profile");
     await fs.mkdir(profileDir, { recursive: true });
 
     const store = new ProfileStore({ activeProfileDirectory: profileDir });
-    await expect(store.loadActiveProfile()).rejects.toThrow();
+    const profile = await store.loadActiveProfile();
+
+    expect(profile.opencodeJson).toEqual({});
+    expect(profile.ohMyOpencodeJson).toEqual({});
+    expect(profile.agentsMarkdown).toBe("");
+    expect(profile.agentPrompts).toEqual({});
+    expect(profile.name).toBe("no-opencode-profile");
+    expect(profile.isActive).toBe(true);
   });
 
   it("throws when opencode.json contains invalid JSON", async () => {

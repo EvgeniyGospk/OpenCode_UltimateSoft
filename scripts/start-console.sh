@@ -191,8 +191,102 @@ log "Запускаю UI  (HMR)        на http://127.0.0.1:$UI_PORT ..."
 npm --prefix "$UI_DIR" run dev 2>&1 &
 UI_PID=$!
 
+# ── Ждём пока сервисы поднимутся ──
+API_BASE="http://127.0.0.1:$API_PORT"
+UI_BASE="http://127.0.0.1:$UI_PORT"
+
+log "Жду запуска сервисов..."
+READY=0
+for i in $(seq 1 30); do
+  api_ok=$(curl -sf -o /dev/null -w "%{http_code}" "$API_BASE/api/v1/health" 2>/dev/null || echo "000")
+  ui_ok=$(curl -sf -o /dev/null -w "%{http_code}" "$UI_BASE/" 2>/dev/null || echo "000")
+  if [ "$api_ok" = "200" ] && [ "$ui_ok" = "200" ]; then
+    READY=1
+    break
+  fi
+  sleep 1
+done
+
+if [ "$READY" -eq 0 ]; then
+  err "Сервисы не поднялись за 30 секунд!"
+  [ "$api_ok" != "200" ] && err "  API ($API_BASE) — HTTP $api_ok"
+  [ "$ui_ok"  != "200" ] && err "  UI  ($UI_BASE)  — HTTP $ui_ok"
+  cleanup
+  exit 1
+fi
+
+# ── Smoke-тесты эндпоинтов ──
+SMOKE_PASS=0
+SMOKE_FAIL=0
+SMOKE_ERRORS=""
+
+smoke_test() {
+  local method="$1" path="$2" expect_code="$3" label="$4" body="${5:-}"
+
+  local url="${API_BASE}${path}"
+  local actual_code
+
+  if [ "$method" = "GET" ]; then
+    actual_code=$(curl -s -o /dev/null -w "%{http_code}" "$url" 2>/dev/null || echo "000")
+  else
+    actual_code=$(curl -s -o /dev/null -w "%{http_code}" -X "$method" \
+      -H "Content-Type: application/json" \
+      -d "$body" "$url" 2>/dev/null || echo "000")
+  fi
+
+  if [ "$actual_code" = "$expect_code" ]; then
+    printf "  ${GREEN}PASS${NC}  %-6s %-35s %s\n" "$method" "$path" "$actual_code"
+    SMOKE_PASS=$((SMOKE_PASS + 1))
+  else
+    printf "  ${RED}FAIL${NC}  %-6s %-35s expected=%s got=%s\n" "$method" "$path" "$expect_code" "$actual_code"
+    SMOKE_FAIL=$((SMOKE_FAIL + 1))
+    SMOKE_ERRORS="${SMOKE_ERRORS}\n  ${RED}FAIL${NC} $method $path (expected $expect_code, got $actual_code)"
+  fi
+}
+
+echo ""
+log "Smoke-тесты API эндпоинтов..."
+echo ""
+
+# ── GET (read-only) эндпоинты ──
+smoke_test GET  "/api/v1/health"            200 "Health check"
+smoke_test GET  "/api/v1/profiles"          200 "List profiles"
+smoke_test GET  "/api/v1/profiles/active"   200 "Active profile"
+smoke_test GET  "/api/v1/agents"            200 "List agents"
+smoke_test GET  "/api/v1/agents/sync-status" 200 "Agent sync status"
+smoke_test GET  "/api/v1/providers"         200 "List providers"
+smoke_test GET  "/api/v1/backups"           200 "List backups"
+smoke_test GET  "/api/v1/jobs"              200 "List jobs"
+
+# ── Валидация (должны вернуть 4xx, а не 500) ──
+smoke_test POST "/api/v1/jobs"              400 "Create job — no body"
+smoke_test PUT  "/api/v1/agents/test-key"   400 "Update agent — no body"
+smoke_test PUT  "/api/v1/providers/test-key" 400 "Update provider — no body"
+smoke_test GET  "/api/v1/jobs/nonexistent-id" 404 "Get job — not found"
+
+# ── UI ──
+ui_code=$(curl -s -o /dev/null -w "%{http_code}" "$UI_BASE/" 2>/dev/null || echo "000")
+if [ "$ui_code" = "200" ]; then
+  printf "  ${GREEN}PASS${NC}  %-6s %-35s %s\n" "GET" "UI /" "$ui_code"
+  SMOKE_PASS=$((SMOKE_PASS + 1))
+else
+  printf "  ${RED}FAIL${NC}  %-6s %-35s expected=200 got=%s\n" "GET" "UI /" "$ui_code"
+  SMOKE_FAIL=$((SMOKE_FAIL + 1))
+fi
+
+echo ""
+SMOKE_TOTAL=$((SMOKE_PASS + SMOKE_FAIL))
+
+if [ "$SMOKE_FAIL" -eq 0 ]; then
+  ok "Все $SMOKE_TOTAL smoke-тестов прошли"
+else
+  err "$SMOKE_FAIL из $SMOKE_TOTAL smoke-тестов упали:"
+  printf "$SMOKE_ERRORS\n"
+  echo ""
+  warn "Приложение запущено, но есть ошибки в эндпоинтах ^^"
+fi
+
 # ── Баннер ──
-sleep 1
 echo ""
 printf "${BOLD}╔══════════════════════════════════════════════╗${NC}\n"
 printf "${BOLD}║${NC}  ${GREEN}OpenCode Console запущена${NC}                    ${BOLD}║${NC}\n"

@@ -158,10 +158,22 @@ export class ProfileStore implements IProfileStore {
   }
 
   async loadActiveProfile(): Promise<ActiveProfileState> {
-    const profilePath = await this.resolveActiveProfilePath();
+    let profilePath: string;
+    try {
+      profilePath = await this.resolveActiveProfilePath();
+    } catch {
+      // Profile directory does not exist yet — return empty profile
+      return this.emptyProfile(this.activeProfileDirectory);
+    }
+
     const managedPaths = this.getManagedPaths(profilePath);
 
-    const opencodeRaw = await fs.readFile(managedPaths.opencodePath, "utf8");
+    const opencodeRaw = await readOptionalText(managedPaths.opencodePath);
+    if (opencodeRaw === null) {
+      // opencode.json not created yet — return empty profile
+      return this.emptyProfile(profilePath);
+    }
+
     const ohMyRaw = await readOptionalText(managedPaths.ohMyOpencodePath);
     const agentsRaw = await readOptionalText(managedPaths.agentsPath);
 
@@ -185,6 +197,21 @@ export class ProfileStore implements IProfileStore {
       ohMyOpencodeJson,
       agentsMarkdown,
       agentPrompts
+    };
+  }
+
+  private emptyProfile(profilePath: string): ActiveProfileState {
+    const profileName = basename(profilePath);
+    return {
+      id: profileName,
+      name: profileName,
+      path: profilePath,
+      isActive: true,
+      updatedAt: new Date().toISOString(),
+      opencodeJson: {},
+      ohMyOpencodeJson: {},
+      agentsMarkdown: "",
+      agentPrompts: {}
     };
   }
 
