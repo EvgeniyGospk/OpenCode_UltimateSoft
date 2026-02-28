@@ -13,6 +13,12 @@
   --color-accent: #1f8cff;
   --color-accent-hover: #1576de;
   --color-accent-soft: #dcecff;
+  /* Surface = white; same as --color-panel. Used for form control backgrounds. */
+  --color-surface: #ffffff;
+  --color-danger: #be123c;
+  --color-danger-hover: #9f1239;
+  --color-warning: #b45309;
+  --color-warning-hover: #92400e;
 }
 
 * {
