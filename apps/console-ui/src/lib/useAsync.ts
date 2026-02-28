@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 /**
  * Shared hook that eliminates the repeated loading / error / try-catch
@@ -50,14 +50,11 @@ export function useAsync(initialLoading = true): UseAsyncReturn {
   // Guard against state updates after unmount.
   const mountedRef = useRef(true);
 
-  // Capture unmount once.
-  // Using a ref-based guard is intentional here – it prevents "setState on
-  // unmounted component" warnings when the user navigates away mid-request.
-  useState(() => {
-    // cleanup returned from the initializer is not possible, so we rely on
-    // the consumer's useEffect cleanup or React 18's auto-batching.
-    return undefined;
-  });
+  useEffect(() => {
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
 
   const run = useCallback(
     async <T>(fn: () => Promise<T>): Promise<T | undefined> => {

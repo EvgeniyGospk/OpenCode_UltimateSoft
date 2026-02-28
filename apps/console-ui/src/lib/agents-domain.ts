@@ -221,6 +221,11 @@ export function formatVariantLabel(value: string): string {
   return normalized.charAt(0).toUpperCase() + normalized.slice(1);
 }
 
+function compareVariants(left: string, right: string): number {
+  const rankDelta = getVariantRank(left) - getVariantRank(right);
+  return rankDelta !== 0 ? rankDelta : left.localeCompare(right);
+}
+
 export function inferModelVariants(modelRef: string): string[] {
   const parsed = parseModelRef(modelRef);
   const modelLower = parsed.modelId.toLowerCase();
@@ -248,13 +253,7 @@ export function resolveVariantOptions(
   const inferredVariants = inferModelVariants(modelRef);
   const merged = new Set<string>([...explicitVariants, ...inferredVariants]);
 
-  return [...merged].sort((left, right) => {
-    const rankDelta = getVariantRank(left) - getVariantRank(right);
-    if (rankDelta !== 0) {
-      return rankDelta;
-    }
-    return left.localeCompare(right);
-  });
+  return [...merged].sort(compareVariants);
 }
 
 export function toVariantOptions(
@@ -271,13 +270,7 @@ export function toVariantOptions(
     options.add(normalizedCurrent);
   }
 
-  return [...options].sort((left, right) => {
-    const rankDelta = getVariantRank(left) - getVariantRank(right);
-    if (rankDelta !== 0) {
-      return rankDelta;
-    }
-    return left.localeCompare(right);
-  });
+  return [...options].sort(compareVariants);
 }
 
 // ---------------------------------------------------------------------------

@@ -1,12 +1,28 @@
+import { lazy } from "react";
 import { createBrowserRouter } from "react-router-dom";
 import { AppShell } from "@/components/layout/app-shell";
-import { AgentsPage } from "@/pages/agents-page";
-import { BackupsPage } from "@/pages/backups-page";
-import { DashboardPage } from "@/pages/dashboard-page";
-import { JobsPage } from "@/pages/jobs-page";
-import { NotFoundPage } from "@/pages/not-found-page";
-import { ProvidersPage } from "@/pages/providers-page";
-import { SettingsPage } from "@/pages/settings-page";
+
+const DashboardPage = lazy(() =>
+  import("@/pages/dashboard-page").then((m) => ({ default: m.DashboardPage }))
+);
+const AgentsPage = lazy(() =>
+  import("@/pages/agents-page").then((m) => ({ default: m.AgentsPage }))
+);
+const ProvidersPage = lazy(() =>
+  import("@/pages/providers-page").then((m) => ({ default: m.ProvidersPage }))
+);
+const JobsPage = lazy(() =>
+  import("@/pages/jobs-page").then((m) => ({ default: m.JobsPage }))
+);
+const BackupsPage = lazy(() =>
+  import("@/pages/backups-page").then((m) => ({ default: m.BackupsPage }))
+);
+const SettingsPage = lazy(() =>
+  import("@/pages/settings-page").then((m) => ({ default: m.SettingsPage }))
+);
+const NotFoundPage = lazy(() =>
+  import("@/pages/not-found-page").then((m) => ({ default: m.NotFoundPage }))
+);
 
 export const appRouter = createBrowserRouter([
   {

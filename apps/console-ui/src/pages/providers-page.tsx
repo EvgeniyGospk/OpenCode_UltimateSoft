@@ -1,65 +1,27 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { ProvidersEnvelope } from "@opencode-console/api-client-generated";
+import { useCallback, useEffect, useMemo, useState } from "react";
+
 import { RefreshCw, Save } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { StatusMessages } from "@/components/ui/status-messages";
+import { Textarea } from "@/components/ui/textarea";
 import { apiClient } from "@/lib/api-client";
 import { isJsonObject } from "@/lib/guards";
+import { toProviderItemsFromConfig, toDraftMap } from "@/lib/providers-domain";
+import type { ProviderItem } from "@/lib/agents-domain";
 import { useAsync } from "@/lib/useAsync";
-
-type ProviderItem = ProvidersEnvelope["data"]["items"][number];
-
-function formatJson(value: unknown) {
-  return JSON.stringify(value, null, 2);
-}
-
-function toProviderItemsFromConfig(value: unknown): ProviderItem[] {
-  if (!isJsonObject(value)) {
-    return [];
-  }
-
-  const items: ProviderItem[] = [];
-
-  for (const [key, definition] of Object.entries(value)) {
-    if (!isJsonObject(definition)) {
-      continue;
-    }
-
-    items.push({
-      key,
-      definition
-    });
-  }
-
-  return items;
-}
-
-function toDraftMap(items: ProviderItem[]): Record<string, string> {
-  const nextDrafts: Record<string, string> = {};
-
-  for (const item of items) {
-    nextDrafts[item.key] = formatJson(item.definition);
-  }
-
-  return nextDrafts;
-}
 
 export function ProvidersPage() {
   const [items, setItems] = useState<ProviderItem[]>([]);
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [busyKey, setBusyKey] = useState<string | null>(null);
-  const hasItemsRef = useRef(false);
   const { loading, error, warning, setError, setWarning, run } = useAsync();
 
   const sortedItems = useMemo(
     () => [...items].sort((left, right) => left.key.localeCompare(right.key)),
     [items]
   );
-
-  useEffect(() => {
-    hasItemsRef.current = items.length > 0;
-  }, [items.length]);
 
   const loadProviders = useCallback(async () => {
     setWarning(null);
@@ -86,33 +48,35 @@ export function ProvidersPage() {
       return;
     }
 
-    if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+    if (!isJsonObject(parsed)) {
       setError(`Provider '${provider.key}' JSON must be an object.`);
       return;
     }
-    const definition = parsed as Record<string, unknown>;
+    const definition = parsed;
 
-    setBusyKey(provider.key);
-    setWarning(null);
+    try {
+      setBusyKey(provider.key);
+      setWarning(null);
 
-    await run(async () => {
-      const response = await apiClient.updateProvider(provider.key, {
-        definition
+      await run(async () => {
+        const response = await apiClient.updateProvider(provider.key, {
+          definition
+        });
+
+        const nextProviders = toProviderItemsFromConfig(
+          response.data.profile.opencodeJson.provider
+        );
+
+        if (nextProviders.length > 0) {
+          setItems(nextProviders);
+          setDrafts(toDraftMap(nextProviders));
+        } else {
+          await loadProviders();
+        }
       });
-
-      const nextProviders = toProviderItemsFromConfig(
-        response.data.profile.opencodeJson.provider
-      );
-
-      if (nextProviders.length > 0) {
-        setItems(nextProviders);
-        setDrafts(toDraftMap(nextProviders));
-      } else {
-        await loadProviders();
-      }
-    });
-
-    setBusyKey(null);
+    } finally {
+      setBusyKey(null);
+    }
   }
 
   return (
@@ -138,20 +102,14 @@ export function ProvidersPage() {
           <CardTitle>Provider Configs ({sortedItems.length})</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
-          {loading ? (
-            <p className="text-sm text-[var(--color-muted)]">
-              Loading providers...
-            </p>
-          ) : null}
-          {error ? <p className="text-sm text-rose-700">{error}</p> : null}
-          {warning ? (
-            <p className="text-sm text-amber-700">{warning}</p>
-          ) : null}
-          {!loading && sortedItems.length === 0 ? (
-            <p className="text-sm text-[var(--color-muted)]">
-              No providers found.
-            </p>
-          ) : null}
+          <StatusMessages
+            loading={loading}
+            error={error}
+            warning={warning}
+            isEmpty={!loading && sortedItems.length === 0}
+            emptyText="No providers found."
+            loadingText="Loading providers..."
+          />
 
           {sortedItems.map((provider) => (
             <div
@@ -159,7 +117,7 @@ export function ProvidersPage() {
               className="space-y-2 rounded-lg border border-[var(--color-line)] p-3"
             >
               <p className="text-sm font-medium">{provider.key}</p>
-              <textarea
+              <Textarea
                 value={drafts[provider.key] ?? "{}"}
                 onChange={(event) =>
                   setDrafts((current) => ({
@@ -168,7 +126,7 @@ export function ProvidersPage() {
                   }))
                 }
                 rows={10}
-                className="w-full rounded-lg border border-[var(--color-line)] px-3 py-2 font-mono text-xs"
+                className="text-xs"
               />
               <Button
                 size="sm"

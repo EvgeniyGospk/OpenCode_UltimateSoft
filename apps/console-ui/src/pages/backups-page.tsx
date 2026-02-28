@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { BackupsEnvelope } from "@opencode-console/api-client-generated";
 import { RefreshCw, RotateCcw } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { StatusMessages } from "@/components/ui/status-messages";
 import { apiClient } from "@/lib/api-client";
 import { useAsync } from "@/lib/useAsync";
 
@@ -12,7 +13,7 @@ type SnapshotItem = BackupsEnvelope["data"]["items"][number];
 export function BackupsPage() {
   const [items, setItems] = useState<SnapshotItem[]>([]);
   const [busyId, setBusyId] = useState<string | null>(null);
-  const { loading, error, setError, run } = useAsync();
+  const { loading, error, run } = useAsync();
 
   const sortedItems = useMemo(
     () =>
@@ -22,30 +23,32 @@ export function BackupsPage() {
     [items]
   );
 
-  async function loadBackups() {
+  const loadBackups = useCallback(async () => {
     await run(async () => {
       const response = await apiClient.listBackups();
       setItems(response.data.items);
     });
-  }
+  }, [run]);
 
   useEffect(() => {
     void loadBackups();
-  }, []);
+  }, [loadBackups]);
 
   async function restoreSnapshot(snapshotId: string) {
     if (!window.confirm(`Restore snapshot '${snapshotId}'?`)) {
       return;
     }
 
-    setBusyId(snapshotId);
+    try {
+      setBusyId(snapshotId);
 
-    await run(async () => {
-      await apiClient.restoreBackup(snapshotId);
-      await loadBackups();
-    });
-
-    setBusyId(null);
+      await run(async () => {
+        await apiClient.restoreBackup(snapshotId);
+        await loadBackups();
+      });
+    } finally {
+      setBusyId(null);
+    }
   }
 
   return (
@@ -71,17 +74,13 @@ export function BackupsPage() {
           <CardTitle>Snapshots ({sortedItems.length})</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
-          {loading ? (
-            <p className="text-sm text-[var(--color-muted)]">
-              Loading snapshots...
-            </p>
-          ) : null}
-          {error ? <p className="text-sm text-rose-700">{error}</p> : null}
-          {!loading && sortedItems.length === 0 ? (
-            <p className="text-sm text-[var(--color-muted)]">
-              No snapshots found yet.
-            </p>
-          ) : null}
+          <StatusMessages
+            loading={loading}
+            error={error}
+            isEmpty={!loading && items.length === 0}
+            emptyText="No snapshots found yet."
+            loadingText="Loading snapshots..."
+          />
 
           {sortedItems.map((snapshot) => (
             <div
