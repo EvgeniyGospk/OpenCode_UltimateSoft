@@ -1,135 +1,193 @@
-#!/usr/bin/env sh
-set -eu
+#!/usr/bin/env bash
+# ─────────────────────────────────────────────────────────────
+# start-console.sh — запуск консоли OpenCode (API + UI)
+#
+# Использование:
+#   ./scripts/start-console.sh          — обычный запуск
+#   npm run dev:console                 — то же через package.json
+#
+# Фичи:
+#   • API (бэкенд)  — tsx watch, авто-перезапуск при изменениях
+#   • UI  (фронт)   — Vite dev server с HMR
+#   • .env создаётся автоматически из .env.example
+#   • Зависимости ставятся при первом запуске
+#   • Ctrl+C корректно гасит оба процесса
+# ─────────────────────────────────────────────────────────────
+set -euo pipefail
 
+# ── Цвета ──
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+CYAN='\033[0;36m'
+BOLD='\033[1m'
+NC='\033[0m' # No Color
+
+log()  { printf "${CYAN}[console]${NC} %s\n" "$*"; }
+ok()   { printf "${GREEN}[  ok  ]${NC} %s\n" "$*"; }
+warn() { printf "${YELLOW}[ warn ]${NC} %s\n" "$*"; }
+err()  { printf "${RED}[error ]${NC} %s\n" "$*"; }
+
+# ── Пути ──
 ROOT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 API_DIR="$ROOT_DIR/apps/console-api"
 UI_DIR="$ROOT_DIR/apps/console-ui"
-DEFAULT_UI_POLLING="${DEFAULT_UI_POLLING:-1}"
-DEFAULT_UI_POLLING_INTERVAL="${DEFAULT_UI_POLLING_INTERVAL:-200}"
-DEFAULT_API_WATCH="${DEFAULT_API_WATCH:-0}"
+ENV_FILE="$ROOT_DIR/.env"
+ENV_EXAMPLE="$ROOT_DIR/.env.example"
 
+# ── Порты (берём из .env или дефолты) ──
+API_PORT="${CONSOLE_API_PORT:-4310}"
+UI_PORT="${VITE_PORT:-5174}"
+
+# ── Проверка npm ──
 if ! command -v npm >/dev/null 2>&1; then
-  echo "npm is required but not found in PATH."
+  err "npm не найден. Установи Node.js: https://nodejs.org"
   exit 1
 fi
 
-find_port_owner() {
-  port="$1"
+# ── .env: автосоздание ──
+if [ ! -f "$ENV_FILE" ]; then
+  if [ -f "$ENV_EXAMPLE" ]; then
+    cp "$ENV_EXAMPLE" "$ENV_FILE"
+    ok ".env создан из .env.example"
+  else
+    warn ".env.example не найден, создаю минимальный .env"
+    cat > "$ENV_FILE" <<'EOF'
+CONSOLE_API_HOST=127.0.0.1
+CONSOLE_API_PORT=4310
+VITE_CONSOLE_API_BASE_URL=http://127.0.0.1:4310
+EOF
+    ok ".env создан с дефолтами"
+  fi
+else
+  ok ".env уже существует"
+fi
 
+# Подгружаем переменные из .env (без перезаписи уже заданных)
+set -a
+# shellcheck disable=SC1090
+. "$ENV_FILE" 2>/dev/null || true
+set +a
+
+# Обновляем порты после загрузки .env
+API_PORT="${CONSOLE_API_PORT:-4310}"
+
+# ── Проверка свободности портов ──
+check_port() {
+  local port="$1" name="$2"
   if command -v ss >/dev/null 2>&1; then
-    ss -ltnp 2>/dev/null | awk -v port=":$port" '$4 ~ port {print; exit}'
-    return
-  fi
-
-  if command -v lsof >/dev/null 2>&1; then
-    lsof -nP -iTCP:"$port" -sTCP:LISTEN 2>/dev/null | sed -n '2p'
-    return
-  fi
-}
-
-assert_port_free() {
-  port="$1"
-  service="$2"
-
-  owner="$(find_port_owner "$port" || true)"
-  if [ -n "$owner" ]; then
-    echo "Port $port is already in use, cannot start $service."
-    echo "Listener: $owner"
-    echo "Stop existing process and run: npm run dev:console"
-    exit 1
-  fi
-}
-
-if [ ! -f "$API_DIR/package.json" ] || [ ! -f "$UI_DIR/package.json" ]; then
-  echo "Cannot find app manifests in apps/console-api or apps/console-ui."
-  exit 1
-fi
-
-assert_port_free 4310 "console-api"
-assert_port_free 5174 "console-ui"
-
-ensure_deps() {
-  target_dir="$1"
-  install_flags="${2:-}"
-
-  if [ ! -d "$target_dir/node_modules" ]; then
-    echo "Installing dependencies in $target_dir ..."
-    if [ -n "$install_flags" ]; then
-      npm --prefix "$target_dir" install $install_flags
-    else
-      npm --prefix "$target_dir" install
+    if ss -ltn 2>/dev/null | grep -q ":${port} "; then
+      err "Порт $port уже занят, не могу запустить $name"
+      err "Освободи порт: kill \$(lsof -ti:$port)"
+      exit 1
+    fi
+  elif command -v lsof >/dev/null 2>&1; then
+    if lsof -iTCP:"$port" -sTCP:LISTEN >/dev/null 2>&1; then
+      err "Порт $port уже занят, не могу запустить $name"
+      err "Освободи порт: kill \$(lsof -ti:$port)"
+      exit 1
     fi
   fi
 }
 
-# eslint/plugin peer mismatch in current UI stack may require legacy peer handling
-ensure_deps "$API_DIR"
-ensure_deps "$UI_DIR" "--legacy-peer-deps"
+check_port "$API_PORT" "console-api"
+check_port "$UI_PORT"  "console-ui"
 
+# ── Установка зависимостей ──
+install_if_needed() {
+  local dir="$1" name="$2" flags="${3:-}"
+  if [ ! -d "$dir/node_modules" ]; then
+    log "Ставлю зависимости: $name ..."
+    if [ -n "$flags" ]; then
+      npm --prefix "$dir" install $flags --silent 2>&1
+    else
+      npm --prefix "$dir" install --silent 2>&1
+    fi
+    ok "Зависимости $name установлены"
+  fi
+}
+
+# Корневой workspace
+install_if_needed "$ROOT_DIR" "workspace (root)"
+# API и UI (на случай если workspace не подтянул)
+install_if_needed "$API_DIR" "console-api"
+install_if_needed "$UI_DIR"  "console-ui" "--legacy-peer-deps"
+
+# ── Фикс inotify лимита (для file watchers) ──
+CURRENT_WATCHES=$(cat /proc/sys/fs/inotify/max_user_watches 2>/dev/null || echo 0)
+DESIRED_WATCHES=524288
+if [ "$CURRENT_WATCHES" -lt "$DESIRED_WATCHES" ]; then
+  if command -v sudo >/dev/null 2>&1; then
+    log "Увеличиваю лимит inotify watchers ($CURRENT_WATCHES -> $DESIRED_WATCHES)..."
+    sudo sysctl -q fs.inotify.max_user_watches=$DESIRED_WATCHES 2>/dev/null && \
+      ok "inotify лимит увеличен" || {
+        warn "Не удалось увеличить inotify лимит — включаю polling для Vite"
+        export VITE_USE_POLLING=1
+      }
+  else
+    warn "sudo не доступен, лимит watchers мал ($CURRENT_WATCHES) — включаю polling"
+    export VITE_USE_POLLING=1
+  fi
+fi
+
+# ── PID-ы и cleanup ──
 API_PID=""
 UI_PID=""
 
 cleanup() {
-  if [ -n "$API_PID" ]; then
-    kill "$API_PID" 2>/dev/null || true
-  fi
-
-  if [ -n "$UI_PID" ]; then
-    kill "$UI_PID" 2>/dev/null || true
-  fi
+  echo ""
+  log "Останавливаю процессы..."
+  [ -n "$API_PID" ] && kill "$API_PID" 2>/dev/null && wait "$API_PID" 2>/dev/null || true
+  [ -n "$UI_PID" ] && kill "$UI_PID" 2>/dev/null && wait "$UI_PID" 2>/dev/null || true
+  ok "Всё остановлено"
 }
-
 trap cleanup INT TERM EXIT
 
-echo "Starting console-api on http://127.0.0.1:4310 ..."
-if [ "${CONSOLE_API_WATCH:-$DEFAULT_API_WATCH}" = "1" ]; then
-  npm --prefix "$API_DIR" run dev &
-else
-  (
-    cd "$API_DIR"
-    npx tsx src/index.ts
-  ) &
-fi
+# ── Запуск API (tsx watch = hot-reload) ──
+log "Запускаю API (hot-reload) на http://127.0.0.1:$API_PORT ..."
+npm --prefix "$API_DIR" run dev 2>&1 &
 API_PID=$!
 
-echo "Starting console-ui on http://127.0.0.1:5174 ..."
-# Use polling watcher by default to avoid ENOSPC on low inotify limits.
-CHOKIDAR_USEPOLLING="${CHOKIDAR_USEPOLLING:-$DEFAULT_UI_POLLING}" \
-CHOKIDAR_INTERVAL="${CHOKIDAR_INTERVAL:-$DEFAULT_UI_POLLING_INTERVAL}" \
-  npm --prefix "$UI_DIR" run dev &
+# ── Запуск UI (Vite HMR) ──
+log "Запускаю UI  (HMR)        на http://127.0.0.1:$UI_PORT ..."
+npm --prefix "$UI_DIR" run dev 2>&1 &
 UI_PID=$!
 
-echo "Console is launching."
-echo "UI:  http://127.0.0.1:5174"
-echo "API: http://127.0.0.1:4310"
-echo "Press Ctrl+C to stop both processes."
+# ── Баннер ──
+sleep 1
+echo ""
+printf "${BOLD}╔══════════════════════════════════════════════╗${NC}\n"
+printf "${BOLD}║${NC}  ${GREEN}OpenCode Console запущена${NC}                    ${BOLD}║${NC}\n"
+printf "${BOLD}║${NC}                                              ${BOLD}║${NC}\n"
+printf "${BOLD}║${NC}  UI:   ${CYAN}http://127.0.0.1:%-5s${NC}                ${BOLD}║${NC}\n" "$UI_PORT"
+printf "${BOLD}║${NC}  API:  ${CYAN}http://127.0.0.1:%-5s${NC}                ${BOLD}║${NC}\n" "$API_PORT"
+printf "${BOLD}║${NC}                                              ${BOLD}║${NC}\n"
+printf "${BOLD}║${NC}  ${YELLOW}Ctrl+C${NC} — остановить                         ${BOLD}║${NC}\n"
+printf "${BOLD}║${NC}  Изменения в коде подхватываются автоматически${BOLD}║${NC}\n"
+printf "${BOLD}╚══════════════════════════════════════════════╝${NC}\n"
+echo ""
 
-while :; do
-  API_ALIVE=0
-  UI_ALIVE=0
+# ── Мониторинг процессов ──
+while true; do
+  api_alive=0; ui_alive=0
+  kill -0 "$API_PID" 2>/dev/null && api_alive=1
+  kill -0 "$UI_PID"  2>/dev/null && ui_alive=1
 
-  if kill -0 "$API_PID" 2>/dev/null; then
-    API_ALIVE=1
-  fi
-
-  if kill -0 "$UI_PID" 2>/dev/null; then
-    UI_ALIVE=1
-  fi
-
-  if [ "$API_ALIVE" -eq 1 ] && [ "$UI_ALIVE" -eq 1 ]; then
-    sleep 1
+  if [ "$api_alive" -eq 1 ] && [ "$ui_alive" -eq 1 ]; then
+    sleep 2
     continue
   fi
 
-  if [ "$API_ALIVE" -eq 0 ] && [ "$UI_ALIVE" -eq 0 ]; then
-    wait "$API_PID" 2>/dev/null || true
-    wait "$UI_PID" 2>/dev/null || true
+  if [ "$api_alive" -eq 0 ] && [ "$ui_alive" -eq 0 ]; then
+    warn "Оба процесса завершились"
     exit 0
   fi
 
-  echo "One service exited. Stopping the remaining process."
+  if [ "$api_alive" -eq 0 ]; then
+    err "API процесс упал! Останавливаю UI..."
+  else
+    err "UI процесс упал! Останавливаю API..."
+  fi
   cleanup
-  wait "$API_PID" 2>/dev/null || true
-  wait "$UI_PID" 2>/dev/null || true
   exit 1
 done

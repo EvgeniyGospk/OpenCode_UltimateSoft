@@ -20,6 +20,11 @@ export default defineConfig({
   server: {
     host: "127.0.0.1",
     port: 5174,
-    strictPort: true
+    strictPort: true,
+    watch: {
+      usePolling: !!process.env.VITE_USE_POLLING,
+      interval: Number(process.env.VITE_POLL_INTERVAL) || 300,
+      ignored: ["**/node_modules/**", "**/dist/**", "**/.git/**"]
+    }
   }
 });

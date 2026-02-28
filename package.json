@@ -5,7 +5,7 @@
     "contracts/*"
   ],
   "scripts": {
-    "dev:console": "sh ./scripts/start-console.sh",
+    "dev:console": "bash ./scripts/start-console.sh",
     "sync:agents:ssot": "npm --prefix apps/console-api run sync:agents",
     "lint": "npm --prefix apps/console-api run lint && npm --prefix apps/console-ui run lint",
     "typecheck": "npm --prefix packages/api-client-generated run typecheck && npm --prefix apps/console-api run typecheck && npm --prefix apps/console-ui run typecheck",
