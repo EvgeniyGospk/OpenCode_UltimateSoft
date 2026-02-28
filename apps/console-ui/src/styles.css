@@ -1,0 +1,36 @@
+@import "tailwindcss";
+
+:root {
+  color-scheme: light;
+  --font-ui:
+    "IBM Plex Sans", "Manrope", "Segoe UI", -apple-system, BlinkMacSystemFont,
+    "Helvetica Neue", sans-serif;
+  --color-bg: #f4f5f8;
+  --color-panel: #ffffff;
+  --color-ink: #131624;
+  --color-muted: #5d6278;
+  --color-line: #dde1ea;
+  --color-accent: #1f8cff;
+  --color-accent-hover: #1576de;
+  --color-accent-soft: #dcecff;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-ui);
+  color: var(--color-ink);
+  background:
+    radial-gradient(circle at 10% 10%, #e8f1ff 0%, transparent 40%),
+    radial-gradient(circle at 95% 0%, #ebf7ff 0%, transparent 35%),
+    var(--color-bg);
+}

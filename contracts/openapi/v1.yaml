@@ -1,0 +1,550 @@
+openapi: 3.1.0
+info:
+  title: OpenCode Console API
+  version: 1.0.0
+  description: Foundation API contract for the OpenCode local web console.
+servers:
+  - url: http://localhost:4310
+paths:
+  /api/v1/health:
+    get:
+      operationId: getHealth
+      summary: Service health probe with correlation envelope
+      responses:
+        '200':
+          description: Health response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EnvelopeHealth'
+  /api/v1/profiles:
+    get:
+      operationId: listProfiles
+      summary: List available local profiles and active marker
+      responses:
+        '200':
+          description: Profiles list response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EnvelopeProfilesList'
+  /api/v1/profiles/active:
+    get:
+      operationId: getActiveProfile
+      summary: Get active profile state from file SSOT
+      responses:
+        '200':
+          description: Active profile response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EnvelopeProfileState'
+    put:
+      operationId: saveActiveProfile
+      summary: Save active profile fields and create restore snapshot
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SaveActiveProfileRequest'
+      responses:
+        '200':
+          description: Active profile save response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EnvelopeProfileMutation'
+  /api/v1/agents:
+    get:
+      operationId: listAgents
+      summary: List active profile agents map
+      responses:
+        '200':
+          description: Agents list response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EnvelopeAgentsList'
+    post:
+      operationId: createAgent
+      summary: Create agent and persist profile with snapshot
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateAgentRequest'
+      responses:
+        '201':
+          description: Agent created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EnvelopeProfileMutation'
+  /api/v1/agents/sync-status:
+    get:
+      operationId: getAgentSyncStatus
+      summary: Inspect whether agents.registry.json projection is in sync
+      responses:
+        '200':
+          description: Agent sync status response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EnvelopeAgentSyncStatus'
+  /api/v1/agents/sync:
+    post:
+      operationId: synchronizeAgents
+      summary: Project agents.registry.json into opencode.json and AGENTS.md
+      responses:
+        '200':
+          description: Agents synchronized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EnvelopeProfileMutation'
+  /api/v1/agents/{agentKey}:
+    parameters:
+      - in: path
+        name: agentKey
+        required: true
+        schema:
+          type: string
+    put:
+      operationId: updateAgent
+      summary: Update existing agent and persist profile with snapshot
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateAgentRequest'
+      responses:
+        '200':
+          description: Agent updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EnvelopeProfileMutation'
+    delete:
+      operationId: deleteAgent
+      summary: Delete existing agent and persist profile with snapshot
+      responses:
+        '200':
+          description: Agent deleted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EnvelopeProfileMutation'
+  /api/v1/agents/{agentKey}/rename:
+    parameters:
+      - in: path
+        name: agentKey
+        required: true
+        schema:
+          type: string
+    post:
+      operationId: renameAgent
+      summary: Rename existing agent key and persist profile with snapshot
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RenameAgentRequest'
+      responses:
+        '200':
+          description: Agent renamed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EnvelopeProfileMutation'
+  /api/v1/providers:
+    get:
+      operationId: listProviders
+      summary: List active profile provider config entries
+      responses:
+        '200':
+          description: Providers list response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EnvelopeProvidersList'
+  /api/v1/providers/{providerKey}:
+    parameters:
+      - in: path
+        name: providerKey
+        required: true
+        schema:
+          type: string
+    put:
+      operationId: updateProvider
+      summary: Update provider definition and persist profile with snapshot
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateDefinitionRequest'
+      responses:
+        '200':
+          description: Provider updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EnvelopeProfileMutation'
+  /api/v1/backups:
+    get:
+      operationId: listBackups
+      summary: List restore snapshots for active profile
+      responses:
+        '200':
+          description: Backups list response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EnvelopeBackupsList'
+  /api/v1/backups/restore/{snapshotId}:
+    parameters:
+      - in: path
+        name: snapshotId
+        required: true
+        schema:
+          type: string
+    post:
+      operationId: restoreBackup
+      summary: Restore snapshot into active profile and create restore-point
+      responses:
+        '200':
+          description: Snapshot restore response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EnvelopeProfileMutation'
+components:
+  schemas:
+    Error:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+          example: CONFIG_VERSION_CONFLICT
+        message:
+          type: string
+        details:
+          type: object
+          additionalProperties: true
+    JsonObject:
+      type: object
+      additionalProperties: true
+    HealthPayload:
+      type: object
+      required: [status, service, version]
+      properties:
+        status:
+          type: string
+          enum: [ok]
+        service:
+          type: string
+          example: console-api
+        version:
+          type: string
+          example: 1.0.0
+    EnvelopeHealth:
+      type: object
+      required: [requestId, traceId, data, error]
+      properties:
+        requestId:
+          type: string
+        traceId:
+          type: string
+        data:
+          $ref: '#/components/schemas/HealthPayload'
+        error:
+          anyOf:
+            - $ref: '#/components/schemas/Error'
+            - type: 'null'
+    ProfileSummary:
+      type: object
+      required: [id, name, path, isActive]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        path:
+          type: string
+        isActive:
+          type: boolean
+    ProfileState:
+      type: object
+      required:
+        - id
+        - name
+        - path
+        - isActive
+        - updatedAt
+        - opencodeJson
+        - ohMyOpencodeJson
+        - agentsMarkdown
+        - agentPrompts
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        path:
+          type: string
+        isActive:
+          type: boolean
+        updatedAt:
+          type: string
+        opencodeJson:
+          $ref: '#/components/schemas/JsonObject'
+        ohMyOpencodeJson:
+          $ref: '#/components/schemas/JsonObject'
+        agentsMarkdown:
+          type: string
+        agentPrompts:
+          type: object
+          additionalProperties:
+            type: string
+    SnapshotRecord:
+      type: object
+      required: [id, profilePath, createdAt, reason, relativePaths]
+      properties:
+        id:
+          type: string
+        profilePath:
+          type: string
+        createdAt:
+          type: string
+        reason:
+          type: string
+        relativePaths:
+          type: array
+          items:
+            type: string
+    AgentRecord:
+      type: object
+      required: [key, definition, createdAt, updatedAt, taskExposure, keyPool]
+      properties:
+        key:
+          type: string
+        definition:
+          $ref: '#/components/schemas/JsonObject'
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+        taskExposure:
+          $ref: '#/components/schemas/TaskExposureMode'
+        keyPool:
+          $ref: '#/components/schemas/AgentKeyPool'
+        taskAlias:
+          type: string
+    AgentKeyPool:
+      type: string
+      enum: [any, software, default]
+    TaskExposureMode:
+      type: string
+      enum: [off, direct, alias]
+    ProviderRecord:
+      type: object
+      required: [key, definition]
+      properties:
+        key:
+          type: string
+        definition:
+          $ref: '#/components/schemas/JsonObject'
+    SaveActiveProfileRequest:
+      type: object
+      properties:
+        opencodeJson:
+          $ref: '#/components/schemas/JsonObject'
+        ohMyOpencodeJson:
+          $ref: '#/components/schemas/JsonObject'
+        agentsMarkdown:
+          type: string
+    CreateAgentRequest:
+      type: object
+      required: [key, definition]
+      properties:
+        key:
+          type: string
+        definition:
+          $ref: '#/components/schemas/JsonObject'
+        keyPool:
+          $ref: '#/components/schemas/AgentKeyPool'
+    UpdateAgentRequest:
+      type: object
+      required: [definition]
+      properties:
+        definition:
+          $ref: '#/components/schemas/JsonObject'
+        keyPool:
+          $ref: '#/components/schemas/AgentKeyPool'
+    UpdateDefinitionRequest:
+      type: object
+      required: [definition]
+      properties:
+        definition:
+          $ref: '#/components/schemas/JsonObject'
+    RenameAgentRequest:
+      type: object
+      required: [key]
+      properties:
+        key:
+          type: string
+    ProfileMutationPayload:
+      type: object
+      required: [profile, snapshot]
+      properties:
+        profile:
+          $ref: '#/components/schemas/ProfileState'
+        snapshot:
+          $ref: '#/components/schemas/SnapshotRecord'
+    ProfilesListPayload:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProfileSummary'
+    AgentsListPayload:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/AgentRecord'
+    ProvidersListPayload:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProviderRecord'
+    BackupsListPayload:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/SnapshotRecord'
+    AgentSyncStatusPayload:
+      type: object
+      required: [inSync, registryExists, issues]
+      properties:
+        inSync:
+          type: boolean
+        registryExists:
+          type: boolean
+        issues:
+          type: array
+          items:
+            type: string
+    EnvelopeProfilesList:
+      type: object
+      required: [requestId, traceId, data, error]
+      properties:
+        requestId:
+          type: string
+        traceId:
+          type: string
+        data:
+          $ref: '#/components/schemas/ProfilesListPayload'
+        error:
+          anyOf:
+            - $ref: '#/components/schemas/Error'
+            - type: 'null'
+    EnvelopeProfileState:
+      type: object
+      required: [requestId, traceId, data, error]
+      properties:
+        requestId:
+          type: string
+        traceId:
+          type: string
+        data:
+          $ref: '#/components/schemas/ProfileState'
+        error:
+          anyOf:
+            - $ref: '#/components/schemas/Error'
+            - type: 'null'
+    EnvelopeProfileMutation:
+      type: object
+      required: [requestId, traceId, data, error]
+      properties:
+        requestId:
+          type: string
+        traceId:
+          type: string
+        data:
+          $ref: '#/components/schemas/ProfileMutationPayload'
+        error:
+          anyOf:
+            - $ref: '#/components/schemas/Error'
+            - type: 'null'
+    EnvelopeAgentsList:
+      type: object
+      required: [requestId, traceId, data, error]
+      properties:
+        requestId:
+          type: string
+        traceId:
+          type: string
+        data:
+          $ref: '#/components/schemas/AgentsListPayload'
+        error:
+          anyOf:
+            - $ref: '#/components/schemas/Error'
+            - type: 'null'
+    EnvelopeProvidersList:
+      type: object
+      required: [requestId, traceId, data, error]
+      properties:
+        requestId:
+          type: string
+        traceId:
+          type: string
+        data:
+          $ref: '#/components/schemas/ProvidersListPayload'
+        error:
+          anyOf:
+            - $ref: '#/components/schemas/Error'
+            - type: 'null'
+    EnvelopeBackupsList:
+      type: object
+      required: [requestId, traceId, data, error]
+      properties:
+        requestId:
+          type: string
+        traceId:
+          type: string
+        data:
+          $ref: '#/components/schemas/BackupsListPayload'
+        error:
+          anyOf:
+            - $ref: '#/components/schemas/Error'
+            - type: 'null'
+    EnvelopeAgentSyncStatus:
+      type: object
+      required: [requestId, traceId, data, error]
+      properties:
+        requestId:
+          type: string
+        traceId:
+          type: string
+        data:
+          $ref: '#/components/schemas/AgentSyncStatusPayload'
+        error:
+          anyOf:
+            - $ref: '#/components/schemas/Error'
+            - type: 'null'

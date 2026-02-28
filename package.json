@@ -1,0 +1,30 @@
+{
+  "workspaces": [
+    "apps/*",
+    "packages/*",
+    "contracts/*"
+  ],
+  "scripts": {
+    "dev:console": "sh ./scripts/start-console.sh",
+    "sync:agents:ssot": "npm --prefix apps/console-api run sync:agents",
+    "lint": "npm --prefix apps/console-api run lint && npm --prefix apps/console-ui run lint",
+    "typecheck": "npm --prefix packages/api-client-generated run typecheck && npm --prefix apps/console-api run typecheck && npm --prefix apps/console-ui run typecheck",
+    "test:contracts": "npm --prefix packages/api-client-generated run check:contract",
+    "build": "npm --prefix packages/api-client-generated run build && npm --prefix apps/console-api run build && npm --prefix apps/console-ui run build"
+  },
+  "dependencies": {
+    "@a3fckx/opencode-multi-auth": "^1.0.4",
+    "@guard22/opencode-multi-auth-codex": "git+https://github.com/guard22/opencode-multi-auth-codex.git#main",
+    "@opencode-ai/plugin": "1.2.15",
+    "oh-my-opencode": "^3.8.5",
+    "opencode-antigravity-auth": "^1.6.0",
+    "opencode-multi-auth-codex": "file:./local-plugins/local-plugins/opencode-multi-auth-codex",
+    "opencode-oh-my-opencode": "file:./local-plugins/local-plugins/opencode-oh-my-opencode",
+    "opencode-openai-codex-auth": "git+https://github.com/code-yeongyu/opencode-openai-codex-auth.git#fix/orphaned-function-call-output-with-tools"
+  },
+  "trustedDependencies": [
+    "@ast-grep/cli",
+    "@code-yeongyu/comment-checker",
+    "oh-my-opencode"
+  ]
+}

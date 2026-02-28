@@ -1,0 +1,16 @@
+{
+  "name": "@opencode-console/api-client-generated",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "generate": "openapi-typescript ../../contracts/openapi/v1.yaml --output src/generated/schema.ts",
+    "check:contract": "node ./scripts/check-contract.mjs",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "build": "npm run generate && tsc -p tsconfig.json"
+  },
+  "devDependencies": {
+    "openapi-typescript": "^7.13.0",
+    "typescript": "^5.9.3"
+  }
+}

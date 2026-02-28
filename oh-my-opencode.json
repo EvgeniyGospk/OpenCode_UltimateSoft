@@ -1,0 +1,57 @@
+{
+  "$schema": "https://raw.githubusercontent.com/code-yeongyu/oh-my-opencode/master/assets/oh-my-opencode.schema.json",
+  "agents": {
+    "sisyphus": {
+      "model": "anthropic/claude-sonnet-4-6"
+    },
+    "sisyphus-junior": {
+      "model": "openai/gpt-5.3-codex"
+    },
+    "oracle": {
+      "model": "anthropic/claude-sonnet-4-6"
+    },
+    "librarian": {
+      "model": "openai/gpt-5.3-codex"
+    },
+    "explore": {
+      "model": "openai/gpt-5.3-codex"
+    },
+    "multimodal-looker": {
+      "model": "google-vertex/gemini-3.1-pro-preview"
+    }
+  },
+  "categories": {
+    "quick": {
+      "model": "openai/gpt-5.3-codex"
+    },
+    "visual-engineering": {
+      "model": "google-vertex/gemini-3.1-pro-preview"
+    },
+    "ultrabrain": {
+      "model": "anthropic/claude-sonnet-4-6"
+    },
+    "artistry": {
+      "model": "google-vertex/gemini-3.1-pro-preview"
+    },
+    "unspecified-low": {
+      "model": "anthropic/claude-sonnet-4-6"
+    },
+    "unspecified-high": {
+      "model": "anthropic/claude-sonnet-4-6"
+    },
+    "writing": {
+      "model": "anthropic/claude-sonnet-4-6"
+    }
+  },
+  "disabled_skills": [
+    "git-master"
+  ],
+  "disabled_hooks": [
+    "category-skill-reminder",
+    "agent-usage-reminder"
+  ],
+  "notification": {
+    "force_enable": true
+  },
+  "google_auth": false
+}
