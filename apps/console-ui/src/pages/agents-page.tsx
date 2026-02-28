@@ -190,6 +190,7 @@ export function AgentsPage() {
               isEmpty={!loading && state.items.length === 0}
               emptyText="No agents found."
               loadingText="Loading agents..."
+              hasData={state.items.length > 0}
             />
 
             {sortedItems.map((agent) => (

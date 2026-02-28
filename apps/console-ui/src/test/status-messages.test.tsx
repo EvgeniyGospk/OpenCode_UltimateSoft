@@ -105,4 +105,18 @@ describe("StatusMessages", () => {
     const { container } = render(<StatusMessages />);
     expect(container.textContent).toBe("");
   });
+
+  // -------------------------------------------------------------------------
+  // hasData — suppress loading when data already present
+  // -------------------------------------------------------------------------
+
+  it("does NOT show loading text when hasData=true (background refresh)", () => {
+    render(<StatusMessages loading hasData loadingText="Loading items..." />);
+    expect(screen.queryByText("Loading items...")).not.toBeInTheDocument();
+  });
+
+  it("shows loading text when hasData=false", () => {
+    render(<StatusMessages loading hasData={false} loadingText="Loading items..." />);
+    expect(screen.getByText("Loading items...")).toBeInTheDocument();
+  });
 });

@@ -436,6 +436,7 @@ export function JobsPage() {
         isEmpty={!loading && items.length === 0}
         emptyText="No jobs found yet."
         loadingText="Loading jobs..."
+        hasData={items.length > 0}
       />
 
       {hasRunning && (

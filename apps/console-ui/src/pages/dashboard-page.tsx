@@ -96,6 +96,7 @@ export function DashboardPage() {
         loading={health.loading || profile.loading}
         error={health.error ?? profile.error}
         loadingText="Loading dashboard..."
+        hasData={healthData !== null || profileData !== null}
       />
 
       {/* KPI metric cards */}

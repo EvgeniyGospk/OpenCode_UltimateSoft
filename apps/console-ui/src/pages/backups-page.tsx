@@ -80,6 +80,7 @@ export function BackupsPage() {
             isEmpty={!loading && items.length === 0}
             emptyText="No snapshots found yet."
             loadingText="Loading snapshots..."
+            hasData={items.length > 0}
           />
 
           {sortedItems.map((snapshot) => (

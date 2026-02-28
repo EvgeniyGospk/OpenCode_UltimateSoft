@@ -107,8 +107,9 @@ export function ProvidersPage() {
             error={error}
             warning={warning}
             isEmpty={!loading && sortedItems.length === 0}
-            emptyText="No providers found."
+            emptyText="No providers configured in this profile."
             loadingText="Loading providers..."
+            hasData={sortedItems.length > 0}
           />
 
           {sortedItems.map((provider) => (
