@@ -1,10 +1,28 @@
 import { spawn, type ChildProcess } from "node:child_process";
+import { existsSync } from "node:fs";
+import { join } from "node:path";
+import { homedir } from "node:os";
 import { createInterface } from "node:readline";
 import type { JobRecord } from "../domain/job-types.js";
 import type { IJobStore } from "../domain/store-interfaces.js";
 
 const DEFAULT_TIMEOUT_MS = 120_000;
 const POLL_INTERVAL_MS = 2_000;
+
+/** Try common install locations for the opencode binary. */
+function resolveOpencodeBin(): string {
+  const candidates = [
+    join(homedir(), ".local", "bin", "opencode"),
+    join(homedir(), ".opencode", "bin", "opencode"),
+    "/usr/local/bin/opencode",
+    "/usr/bin/opencode",
+    "opencode" // fallback to PATH lookup
+  ];
+  for (const candidate of candidates) {
+    if (candidate === "opencode" || existsSync(candidate)) return candidate;
+  }
+  return "opencode";
+}
 
 /**
  * Background worker that polls for pending jobs and executes them
@@ -21,7 +39,7 @@ export class SmokeWorker {
 
   constructor(store: IJobStore, options?: { opencodeBin?: string; timeoutMs?: number }) {
     this.store = store;
-    this.opencodeBin = options?.opencodeBin ?? process.env.OPENCODE_BIN ?? "opencode";
+    this.opencodeBin = options?.opencodeBin ?? process.env.OPENCODE_BIN ?? resolveOpencodeBin();
     this.timeoutMs = options?.timeoutMs ?? (Number(process.env.SMOKE_TIMEOUT_MS) || DEFAULT_TIMEOUT_MS);
   }
 
@@ -92,7 +110,7 @@ export class SmokeWorker {
 
     const child = spawn(
       this.opencodeBin,
-      ["run", "-p", job.prompt, "--agent", job.agentKey],
+      ["run", "--agent", job.agentKey, job.prompt],
       {
         stdio: ["ignore", "pipe", "pipe"],
         env: { ...process.env },

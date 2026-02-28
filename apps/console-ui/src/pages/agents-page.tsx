@@ -101,7 +101,7 @@ export function AgentsPage() {
   // CRUD handlers
   // -----------------------------------------------------------------------
 
-  const { createAgent, updateAgent, renameAgent, deleteAgent, synchronizeRegistry } =
+  const { createAgent, saveAgent, deleteAgent, synchronizeRegistry } =
     useAgentCrud({
       state,
       dispatch,
@@ -204,8 +204,7 @@ export function AgentsPage() {
                 keyPoolDraft={state.keyPoolDrafts[agent.key] ?? "any"}
                 dispatch={dispatch}
                 busy={state.busyKey !== null}
-                onRename={renameAgent}
-                onUpdate={updateAgent}
+                onSave={saveAgent}
                 onDelete={deleteAgent}
               />
             ))}

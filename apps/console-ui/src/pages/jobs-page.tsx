@@ -1,8 +1,6 @@
 import type { FormEvent } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  ChevronDown,
-  ChevronRight,
   Play,
   RefreshCw,
   RotateCcw,
@@ -12,7 +10,7 @@ import {
 } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { FormField } from "@/components/ui/form-field";
 import { Input } from "@/components/ui/input";
 import { StatusMessages } from "@/components/ui/status-messages";
@@ -21,27 +19,37 @@ import { apiClient } from "@/lib/api-client";
 import type { JobLogEntry, JobRecord } from "@/lib/jobs-domain";
 import {
   formatDuration,
-  getStatusColor,
   getStatusLabel,
 } from "@/lib/jobs-domain";
 import { useAsync } from "@/lib/useAsync";
 
 // ---------------------------------------------------------------------------
-// Status badge
+// Status badge (Tailwind colour classes per status)
 // ---------------------------------------------------------------------------
+
+const STATUS_DOT: Record<JobRecord["status"], string> = {
+  pending: "bg-zinc-400",
+  running: "bg-blue-500",
+  success: "bg-green-500",
+  failed: "bg-red-500",
+  cancelled: "bg-amber-500",
+};
+
+const STATUS_TEXT: Record<JobRecord["status"], string> = {
+  pending: "text-zinc-600",
+  running: "text-blue-600",
+  success: "text-green-600",
+  failed: "text-red-600",
+  cancelled: "text-amber-600",
+};
 
 function StatusBadge({ status }: { status: JobRecord["status"] }) {
   return (
     <span
-      className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium"
-      style={{
-        color: getStatusColor(status),
-        border: `1px solid ${getStatusColor(status)}`,
-      }}
+      className={`inline-flex items-center gap-1.5 text-xs font-medium ${STATUS_TEXT[status]}`}
     >
       <span
-        className="inline-block h-1.5 w-1.5 rounded-full"
-        style={{ backgroundColor: getStatusColor(status) }}
+        className={`inline-block h-2 w-2 rounded-full ${STATUS_DOT[status]}`}
       />
       {getStatusLabel(status)}
     </span>
@@ -49,7 +57,7 @@ function StatusBadge({ status }: { status: JobRecord["status"] }) {
 }
 
 // ---------------------------------------------------------------------------
-// Log viewer
+// Terminal-style log viewer
 // ---------------------------------------------------------------------------
 
 function LogViewer({ logs }: { logs: JobLogEntry[] }) {
@@ -63,38 +71,34 @@ function LogViewer({ logs }: { logs: JobLogEntry[] }) {
 
   if (logs.length === 0) {
     return (
-      <p className="px-3 py-2 text-xs text-[var(--color-muted)]">
-        No log entries yet.
-      </p>
+      <p className="px-4 py-3 text-xs text-zinc-500">No log entries yet.</p>
     );
   }
 
   return (
     <div
       ref={scrollRef}
-      className="max-h-64 overflow-auto rounded-lg bg-[var(--color-surface)] p-3 font-mono text-xs leading-5"
+      className="mt-3 max-h-80 overflow-y-auto rounded-lg border border-zinc-800 bg-zinc-950 p-4"
     >
-      {logs.map((entry) => (
-        <div
-          key={entry.id}
-          className={
-            entry.stream === "stderr"
-              ? "text-[var(--color-danger)]"
-              : "text-[var(--color-ink)]"
-          }
-        >
-          <span className="mr-2 text-[var(--color-muted)]">
-            {new Date(entry.timestamp).toLocaleTimeString()}
-          </span>
-          {entry.line}
-        </div>
-      ))}
+      <div className="font-mono text-xs leading-relaxed text-zinc-300">
+        {logs.map((entry) => (
+          <div
+            key={entry.id}
+            className={entry.stream === "stderr" ? "text-red-400" : ""}
+          >
+            <span className="mr-2 text-zinc-500">
+              {new Date(entry.timestamp).toLocaleTimeString()}
+            </span>
+            {entry.line}
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
 
 // ---------------------------------------------------------------------------
-// Create job form
+// Create-job form (dashed dropzone style)
 // ---------------------------------------------------------------------------
 
 interface CreateJobFormProps {
@@ -114,12 +118,22 @@ function CreateJobForm({ busy, onSubmit, onCancel }: CreateJobFormProps) {
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>New Smoke Job</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <form onSubmit={handleSubmit} className="space-y-4">
+    <div className="mb-6 rounded-xl border-2 border-dashed border-[var(--color-line)] bg-zinc-50/50 p-5">
+      <div className="mb-4 flex items-center justify-between">
+        <h3 className="text-sm font-semibold text-[var(--color-ink)]">
+          Draft New Job
+        </h3>
+        <button
+          type="button"
+          onClick={onCancel}
+          className="rounded-md p-1 text-[var(--color-muted)] hover:bg-zinc-100 hover:text-[var(--color-ink)]"
+        >
+          <X className="h-4 w-4" />
+        </button>
+      </div>
+
+      <form onSubmit={handleSubmit}>
+        <div className="grid gap-4 sm:grid-cols-[1fr_2fr_auto]">
           <FormField label="Agent Key">
             <Input
               placeholder="e.g. explore"
@@ -133,37 +147,27 @@ function CreateJobForm({ busy, onSubmit, onCancel }: CreateJobFormProps) {
               placeholder="Enter the prompt for the smoke job..."
               value={prompt}
               onChange={(e) => setPrompt(e.target.value)}
-              rows={4}
+              rows={2}
               required
             />
           </FormField>
-          <div className="flex items-center gap-2">
+          <div className="flex items-end">
             <Button type="submit" variant="primary" size="sm" disabled={busy}>
               <Play className="mr-2 h-4 w-4" />
-              Create Job
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={onCancel}
-              disabled={busy}
-            >
-              <X className="mr-2 h-4 w-4" />
-              Cancel
+              Create
             </Button>
           </div>
-        </form>
-      </CardContent>
-    </Card>
+        </div>
+      </form>
+    </div>
   );
 }
 
 // ---------------------------------------------------------------------------
-// Job row
+// Job card
 // ---------------------------------------------------------------------------
 
-interface JobRowProps {
+interface JobCardProps {
   job: JobRecord;
   expanded: boolean;
   logs: JobLogEntry[];
@@ -174,7 +178,7 @@ interface JobRowProps {
   busyAction: string | null;
 }
 
-function JobRow({
+function JobCard({
   job,
   expanded,
   logs,
@@ -183,53 +187,47 @@ function JobRow({
   onCancel,
   onRetry,
   busyAction,
-}: JobRowProps) {
+}: JobCardProps) {
   const canCancel = job.status === "pending" || job.status === "running";
   const canRetry = job.status === "failed" || job.status === "cancelled";
   const isBusy = busyAction === job.id;
 
   return (
-    <div className="rounded-lg border border-[var(--color-line)] p-3">
-      <div className="grid gap-2 md:grid-cols-[1fr_auto]">
-        <div className="space-y-1 text-sm">
+    <Card className="p-4">
+      {/* Top row: status + agent key + actions */}
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0 flex-1 space-y-1">
           <div className="flex items-center gap-3">
-            <span className="font-medium">{job.agentKey}</span>
+            <span className="text-sm font-bold text-[var(--color-ink)]">
+              {job.agentKey}
+            </span>
             <StatusBadge status={job.status} />
           </div>
-          <p className="text-[var(--color-muted)]">
-            {job.prompt.length > 100
-              ? `${job.prompt.slice(0, 100)}...`
-              : job.prompt}
+
+          {/* Prompt preview */}
+          <p className="line-clamp-2 text-sm text-[var(--color-muted)]">
+            {job.prompt}
           </p>
-          <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-[var(--color-muted)]">
-            <span>
-              Created: {new Date(job.createdAt).toLocaleString()}
-            </span>
-            <span>
-              Duration: {formatDuration(job.startedAt, job.finishedAt)}
-            </span>
+
+          {/* Meta row */}
+          <div className="flex flex-wrap gap-x-4 gap-y-1 pt-1 text-xs text-[var(--color-muted)]">
+            <span>Duration: {formatDuration(job.startedAt, job.finishedAt)}</span>
             {job.exitCode !== undefined && job.exitCode !== null && (
               <span>Exit: {job.exitCode}</span>
             )}
             {job.error && (
-              <span className="text-[var(--color-danger)]">
-                Error: {job.error}
-              </span>
+              <span className="text-red-500">Error: {job.error}</span>
             )}
           </div>
         </div>
 
-        <div className="flex items-start gap-2">
+        {/* Action buttons */}
+        <div className="flex shrink-0 items-center gap-2">
           <Button
             variant="ghost"
             size="sm"
             onClick={() => onToggleLogs(job.id)}
           >
-            {expanded ? (
-              <ChevronDown className="mr-1 h-4 w-4" />
-            ) : (
-              <ChevronRight className="mr-1 h-4 w-4" />
-            )}
             <Terminal className="mr-1 h-4 w-4" />
             Logs
           </Button>
@@ -258,16 +256,19 @@ function JobRow({
         </div>
       </div>
 
+      {/* Expanded log viewer */}
       {expanded && (
-        <div className="mt-3 border-t border-[var(--color-line)] pt-3">
+        <>
           {logsLoading ? (
-            <p className="text-xs text-[var(--color-muted)]">Loading logs...</p>
+            <p className="mt-3 text-xs text-[var(--color-muted)]">
+              Loading logs...
+            </p>
           ) : (
             <LogViewer logs={logs} />
           )}
-        </div>
+        </>
       )}
-    </div>
+    </Card>
   );
 }
 
@@ -420,50 +421,44 @@ export function JobsPage() {
       />
 
       {showForm && (
-        <div className="mb-5">
-          <CreateJobForm
-            busy={busyAction === "create"}
-            onSubmit={(agentKey, prompt) => void handleCreateJob(agentKey, prompt)}
-            onCancel={() => setShowForm(false)}
-          />
-        </div>
+        <CreateJobForm
+          busy={busyAction === "create"}
+          onSubmit={(agentKey, prompt) =>
+            void handleCreateJob(agentKey, prompt)
+          }
+          onCancel={() => setShowForm(false)}
+        />
       )}
 
-      <Card>
-        <CardHeader>
-          <CardTitle>
-            Jobs ({sortedItems.length})
-            {hasRunning && (
-              <span className="ml-2 text-xs font-normal text-[var(--color-accent)]">
-                auto-refreshing
-              </span>
-            )}
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <StatusMessages
-            loading={loading}
-            error={error}
-            isEmpty={!loading && items.length === 0}
-            emptyText="No jobs found yet."
-            loadingText="Loading jobs..."
-          />
+      <StatusMessages
+        loading={loading}
+        error={error}
+        isEmpty={!loading && items.length === 0}
+        emptyText="No jobs found yet."
+        loadingText="Loading jobs..."
+      />
 
-          {sortedItems.map((job) => (
-            <JobRow
-              key={job.id}
-              job={job}
-              expanded={expandedId === job.id}
-              logs={expandedId === job.id ? logs : []}
-              logsLoading={expandedId === job.id && logsLoading}
-              onToggleLogs={(id) => void handleToggleLogs(id)}
-              onCancel={(id) => void handleCancel(id)}
-              onRetry={(id) => void handleRetry(id)}
-              busyAction={busyAction}
-            />
-          ))}
-        </CardContent>
-      </Card>
+      {hasRunning && (
+        <p className="mb-3 text-xs text-[var(--color-accent)]">
+          Auto-refreshing every 3 s...
+        </p>
+      )}
+
+      <div className="space-y-3">
+        {sortedItems.map((job) => (
+          <JobCard
+            key={job.id}
+            job={job}
+            expanded={expandedId === job.id}
+            logs={expandedId === job.id ? logs : []}
+            logsLoading={expandedId === job.id && logsLoading}
+            onToggleLogs={(id) => void handleToggleLogs(id)}
+            onCancel={(id) => void handleCancel(id)}
+            onRetry={(id) => void handleRetry(id)}
+            busyAction={busyAction}
+          />
+        ))}
+      </div>
     </div>
   );
 }

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useState } from "react";
 import type {
   HealthEnvelope,
   ProfileStateEnvelope
@@ -11,6 +11,36 @@ import { StatusMessages } from "@/components/ui/status-messages";
 import { apiClient } from "@/lib/api-client";
 import { countObjectKeys } from "@/lib/guards";
 import { useAsync } from "@/lib/useAsync";
+
+// ---------------------------------------------------------------------------
+// KPI metric card
+// ---------------------------------------------------------------------------
+
+function MetricCard({
+  label,
+  value,
+  indicator,
+}: {
+  label: string;
+  value: ReactNode;
+  indicator?: ReactNode;
+}) {
+  return (
+    <Card className="p-5">
+      <p className="text-sm font-medium text-[var(--color-muted)]">{label}</p>
+      <div className="mt-2 flex items-center gap-2">
+        {indicator}
+        <p className="text-3xl font-bold tracking-tight text-[var(--color-ink)]">
+          {value}
+        </p>
+      </div>
+    </Card>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Main page
+// ---------------------------------------------------------------------------
 
 export function DashboardPage() {
   const [healthData, setHealthData] = useState<HealthEnvelope | null>(null);
@@ -46,6 +76,9 @@ export function DashboardPage() {
   const agentCount = countObjectKeys(profileData?.data.opencodeJson.agent);
   const providerCount = countObjectKeys(profileData?.data.opencodeJson.provider);
 
+  const apiStatus = healthData?.data.status ?? "—";
+  const isOk = apiStatus === "ok";
+
   return (
     <div>
       <PageHeader
@@ -59,58 +92,57 @@ export function DashboardPage() {
         }
       />
 
-      <div className="grid gap-4 md:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle>API Health</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <StatusMessages loading={health.loading} error={health.error} loadingText="Loading health status..." />
-            {healthData ? (
-              <div className="space-y-1 text-sm">
-                <p>
-                  <span className="font-medium">Status:</span> {healthData.data.status}
-                </p>
-                <p>
-                  <span className="font-medium">Service:</span> {healthData.data.service}
-                </p>
-                <p>
-                  <span className="font-medium">Version:</span> {healthData.data.version}
-                </p>
-              </div>
-            ) : null}
-          </CardContent>
-        </Card>
+      <StatusMessages
+        loading={health.loading || profile.loading}
+        error={health.error ?? profile.error}
+        loadingText="Loading dashboard..."
+      />
 
+      {/* KPI metric cards */}
+      <div className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <MetricCard
+          label="API Status"
+          value={apiStatus}
+          indicator={
+            <span
+              className={`inline-block h-3 w-3 rounded-full ${
+                isOk ? "bg-green-500" : "bg-red-500"
+              }`}
+            />
+          }
+        />
+        <MetricCard label="Agents" value={agentCount} />
+        <MetricCard label="Providers" value={providerCount} />
+        <MetricCard
+          label="Version"
+          value={healthData?.data.version ?? "—"}
+        />
+      </div>
+
+      {/* Profile details */}
+      {profileData && (
         <Card>
           <CardHeader>
             <CardTitle>Active Profile</CardTitle>
           </CardHeader>
           <CardContent>
-            <StatusMessages loading={profile.loading} error={profile.error} loadingText="Loading active profile..." />
-            {profileData ? (
-              <div className="space-y-1 text-sm">
-                <p>
-                  <span className="font-medium">Name:</span> {profileData.data.name}
-                </p>
-                <p>
-                  <span className="font-medium">Path:</span> {profileData.data.path}
-                </p>
-                <p>
-                  <span className="font-medium">Updated:</span>{" "}
-                  {new Date(profileData.data.updatedAt).toLocaleString()}
-                </p>
-                <p>
-                  <span className="font-medium">Agents:</span> {agentCount}
-                </p>
-                <p>
-                  <span className="font-medium">Providers:</span> {providerCount}
-                </p>
-              </div>
-            ) : null}
+            <div className="space-y-1 text-sm">
+              <p>
+                <span className="font-medium">Name:</span>{" "}
+                {profileData.data.name}
+              </p>
+              <p>
+                <span className="font-medium">Path:</span>{" "}
+                {profileData.data.path}
+              </p>
+              <p>
+                <span className="font-medium">Updated:</span>{" "}
+                {new Date(profileData.data.updatedAt).toLocaleString()}
+              </p>
+            </div>
           </CardContent>
         </Card>
-      </div>
+      )}
     </div>
   );
 }

@@ -82,16 +82,30 @@ export function useAgentCrud({
     loadAgents,
   ]);
 
-  const updateAgent = useCallback(
+  const saveAgent = useCallback(
     async (agent: AgentItem) => {
+      const keyDraft = (state.keyDrafts[agent.key] ?? "").trim();
       const modelValue = (state.modelDrafts[agent.key] ?? "").trim();
       const variantValue = (state.variantDrafts[agent.key] ?? "").trim();
       const keyPool = state.keyPoolDrafts[agent.key] ?? "any";
 
+      if (!keyDraft) {
+        setError("Agent key cannot be empty.");
+        return;
+      }
+
+      const needsRename = keyDraft !== agent.key;
+
       try {
-        dispatch({ type: "SET_BUSY_KEY", value: `update:${agent.key}` });
+        dispatch({ type: "SET_BUSY_KEY", value: `save:${agent.key}` });
 
         await run(async () => {
+          if (needsRename) {
+            await apiClient.renameAgent(agent.key, { key: keyDraft });
+          }
+
+          const effectiveKey = needsRename ? keyDraft : agent.key;
+
           const nextDefinition = {
             ...agent.definition,
             model: modelValue,
@@ -102,7 +116,7 @@ export function useAgentCrud({
             delete nextDefinition.variant;
           }
 
-          await apiClient.updateAgent(agent.key, {
+          await apiClient.updateAgent(effectiveKey, {
             definition: nextDefinition,
             keyPool,
           });
@@ -112,33 +126,7 @@ export function useAgentCrud({
         dispatch({ type: "SET_BUSY_KEY", value: null });
       }
     },
-    [state.modelDrafts, state.variantDrafts, state.keyPoolDrafts, run, dispatch, loadAgents],
-  );
-
-  const renameAgent = useCallback(
-    async (agent: AgentItem) => {
-      const nextKey = (state.keyDrafts[agent.key] ?? "").trim();
-      if (!nextKey) {
-        setError("Agent key cannot be empty.");
-        return;
-      }
-      if (nextKey === agent.key) {
-        setError("Agent key is unchanged.");
-        return;
-      }
-
-      try {
-        dispatch({ type: "SET_BUSY_KEY", value: `rename:${agent.key}` });
-
-        await run(async () => {
-          await apiClient.renameAgent(agent.key, { key: nextKey });
-          await loadAgents();
-        });
-      } finally {
-        dispatch({ type: "SET_BUSY_KEY", value: null });
-      }
-    },
-    [state.keyDrafts, setError, run, dispatch, loadAgents],
+    [state.keyDrafts, state.modelDrafts, state.variantDrafts, state.keyPoolDrafts, setError, run, dispatch, loadAgents],
   );
 
   const deleteAgent = useCallback(
@@ -174,5 +162,5 @@ export function useAgentCrud({
     }
   }, [run, dispatch, loadAgents]);
 
-  return { createAgent, updateAgent, renameAgent, deleteAgent, synchronizeRegistry };
+  return { createAgent, saveAgent, deleteAgent, synchronizeRegistry };
 }

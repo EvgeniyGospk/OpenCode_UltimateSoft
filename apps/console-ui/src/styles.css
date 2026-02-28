@@ -2,23 +2,21 @@
 
 :root {
   color-scheme: light;
-  --font-ui:
-    "IBM Plex Sans", "Manrope", "Segoe UI", -apple-system, BlinkMacSystemFont,
-    "Helvetica Neue", sans-serif;
-  --color-bg: #f4f5f8;
+  --font-ui: "IBM Plex Sans", "Manrope", "Segoe UI", -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif;
+  --color-bg: #fafafa;
   --color-panel: #ffffff;
-  --color-ink: #131624;
-  --color-muted: #5d6278;
-  --color-line: #dde1ea;
-  --color-accent: #1f8cff;
-  --color-accent-hover: #1576de;
-  --color-accent-soft: #dcecff;
-  /* Surface = white; same as --color-panel. Used for form control backgrounds. */
+  --color-ink: #09090b;
+  --color-muted: #71717a;
+  --color-line: #e4e4e7;
+  --color-accent: #18181b;
+  --color-accent-hover: #27272a;
+  --color-accent-soft: #f4f4f5;
   --color-surface: #ffffff;
-  --color-danger: #be123c;
-  --color-danger-hover: #9f1239;
-  --color-warning: #b45309;
-  --color-warning-hover: #92400e;
+  --color-danger: #ef4444;
+  --color-danger-hover: #dc2626;
+  --color-warning: #f59e0b;
+  --color-warning-hover: #d97706;
+  --color-success: #22c55e;
 }
 
 * {
@@ -35,8 +33,5 @@ body {
   margin: 0;
   font-family: var(--font-ui);
   color: var(--color-ink);
-  background:
-    radial-gradient(circle at 10% 10%, #e8f1ff 0%, transparent 40%),
-    radial-gradient(circle at 95% 0%, #ebf7ff 0%, transparent 35%),
-    var(--color-bg);
+  background: var(--color-bg);
 }
