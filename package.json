@@ -26,5 +26,8 @@
     "@ast-grep/cli",
     "@code-yeongyu/comment-checker",
     "oh-my-opencode"
-  ]
+  ],
+  "devDependencies": {
+    "@testing-library/dom": "^10.4.1"
+  }
 }

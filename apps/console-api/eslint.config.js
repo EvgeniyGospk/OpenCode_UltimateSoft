@@ -11,7 +11,8 @@ export default [
       parser: tsParser,
       parserOptions: {
         sourceType: "module",
-        ecmaVersion: "latest"
+        ecmaVersion: "latest",
+        project: "./tsconfig.json"
       },
       globals: {
         ...globals.node
@@ -21,13 +22,31 @@ export default [
       "@typescript-eslint": tsPlugin
     },
     rules: {
-      "@typescript-eslint/no-explicit-any": "error"
+      // Disable base rule — it flags TS interface/type params incorrectly
+      "no-unused-vars": "off",
+      "@typescript-eslint/no-unused-vars": [
+        "error",
+        {
+          argsIgnorePattern: "^_",
+          varsIgnorePattern: "^_",
+          caughtErrorsIgnorePattern: "^_",
+          ignoreRestSiblings: true
+        }
+      ],
+      "@typescript-eslint/no-explicit-any": "error",
+      "@typescript-eslint/no-floating-promises": "error",
+      "@typescript-eslint/no-misused-promises": "error"
     }
   },
   {
     files: ["**/*.d.ts"],
     rules: {
-      "no-unused-vars": "off"
+      "no-unused-vars": "off",
+      "@typescript-eslint/no-unused-vars": "off"
     }
+  },
+  {
+    // Exclude config files that aren't in tsconfig project
+    ignores: ["vitest.config.ts", "eslint.config.js", "dist/**"]
   }
 ];
