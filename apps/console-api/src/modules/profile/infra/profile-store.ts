@@ -70,8 +70,10 @@ export class ProfileStore implements IProfileStore {
   private readonly profilesRootDirectory: string;
 
   constructor(options: ProfileStoreOptions = {}) {
+    // Treat empty strings the same as unset — `OC_PROFILE=""` in .env
+    // must not override the default with `resolve("")` (which yields CWD).
     const activeFromEnv =
-      process.env.OC_PROFILE ?? process.env.OPENCODE_PROFILE_DIR;
+      process.env.OC_PROFILE || process.env.OPENCODE_PROFILE_DIR || undefined;
 
     this.activeProfileDirectory = resolve(
       expandHomeDirectory(

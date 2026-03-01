@@ -117,7 +117,19 @@ export function ProvidersPage() {
               key={provider.key}
               className="space-y-2 rounded-lg border border-[var(--color-line)] p-3"
             >
-              <p className="text-sm font-medium">{provider.key}</p>
+              <div className="flex items-center justify-between gap-2">
+                <p className="min-w-0 truncate text-sm font-medium">{provider.key}</p>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  disabled={busyKey !== null}
+                  onClick={() => void saveProvider(provider)}
+                  className="shrink-0"
+                >
+                  <Save className="mr-2 h-4 w-4" />
+                  Save
+                </Button>
+              </div>
               <Textarea
                 value={drafts[provider.key] ?? "{}"}
                 onChange={(event) =>
@@ -126,18 +138,9 @@ export function ProvidersPage() {
                     [provider.key]: event.target.value
                   }))
                 }
-                rows={10}
+                rows={8}
                 className="text-xs"
               />
-              <Button
-                size="sm"
-                variant="secondary"
-                disabled={busyKey !== null}
-                onClick={() => void saveProvider(provider)}
-              >
-                <Save className="mr-2 h-4 w-4" />
-                Save
-              </Button>
             </div>
           ))}
         </CardContent>

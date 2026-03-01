@@ -48,9 +48,13 @@ export function useAsync(initialLoading = true): UseAsyncReturn {
   const [warning, setWarning] = useState<string | null>(null);
 
   // Guard against state updates after unmount.
+  // Re-set to `true` on every effect run so React StrictMode's
+  // unmount-then-remount cycle in dev mode does not permanently
+  // disable state updates.
   const mountedRef = useRef(true);
 
   useEffect(() => {
+    mountedRef.current = true;
     return () => {
       mountedRef.current = false;
     };

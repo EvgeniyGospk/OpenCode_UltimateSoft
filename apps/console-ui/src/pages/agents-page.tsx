@@ -122,7 +122,7 @@ export function AgentsPage() {
         title="Agents"
         description="Manage local agent definitions and model mappings."
         actions={
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <Button
               variant="secondary"
               size="sm"
@@ -161,9 +161,9 @@ export function AgentsPage() {
         />
 
         <Card>
-          <CardHeader className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <CardTitle>Agent Mappings ({sortedItems.length})</CardTitle>
-            <div className="flex flex-col gap-1 text-xs text-[var(--color-muted)] md:flex-row md:items-center md:gap-2">
+            <div className="flex items-center gap-2 text-xs text-[var(--color-muted)]">
               <span className="whitespace-nowrap">Sort</span>
               <Select
                 value={state.sortMode}
@@ -173,7 +173,7 @@ export function AgentsPage() {
                     value: event.target.value as SortMode,
                   })
                 }
-                className="h-9 min-w-[220px] text-sm"
+                className="h-9 min-w-0 max-w-[220px] text-sm"
               >
                 <option value="created-desc">Newest first (creation order)</option>
                 <option value="created-asc">Oldest first (creation order)</option>

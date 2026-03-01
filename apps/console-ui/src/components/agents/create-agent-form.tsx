@@ -70,117 +70,123 @@ export function CreateAgentForm({
       <CardHeader>
         <CardTitle>Create Agent</CardTitle>
       </CardHeader>
-      <CardContent className="grid gap-3 md:grid-cols-[1fr_220px_1fr_180px_220px_auto] md:items-end">
-        <FormField label="Agent key">
-          <Input
-            type="text"
-            value={newKey}
-            onChange={(event) =>
-              dispatch({ type: "SET_NEW_KEY", value: event.target.value })
-            }
-            placeholder="e.g. planner"
-          />
-        </FormField>
+      <CardContent>
+        {/* Mobile: stacked, sm: 2-col, lg: full row */}
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-[1fr_180px_1fr_140px_160px_auto] lg:items-end">
+          <FormField label="Agent key">
+            <Input
+              type="text"
+              value={newKey}
+              onChange={(event) =>
+                dispatch({ type: "SET_NEW_KEY", value: event.target.value })
+              }
+              placeholder="e.g. planner"
+            />
+          </FormField>
 
-        <FormField label="Model prefix">
-          <Select
-            value={newModelPrefix}
-            onChange={(event) => {
-              const nextPrefix = event.target.value;
-              dispatch({ type: "SET_NEW_MODEL_PREFIX", value: nextPrefix });
+          <FormField label="Model prefix">
+            <Select
+              value={newModelPrefix}
+              onChange={(event) => {
+                const nextPrefix = event.target.value;
+                dispatch({ type: "SET_NEW_MODEL_PREFIX", value: nextPrefix });
 
-              const firstModelId =
-                modelCatalog.modelIdsByPrefix[nextPrefix]?.[0] ?? "";
-              const nextModel = composeModelRef(nextPrefix, firstModelId);
-              dispatch({ type: "SET_NEW_MODEL", value: nextModel });
+                const firstModelId =
+                  modelCatalog.modelIdsByPrefix[nextPrefix]?.[0] ?? "";
+                const nextModel = composeModelRef(nextPrefix, firstModelId);
+                dispatch({ type: "SET_NEW_MODEL", value: nextModel });
 
-              dispatch({
-                type: "SET_NEW_VARIANT",
-                value: clampVariant(newVariant, nextModel, modelVariantMap),
-              });
-            }}
-          >
-            <option value="">Select prefix</option>
-            {modelCatalog.prefixes.map((prefix) => (
-              <option key={prefix || "__none"} value={prefix}>
-                {prefix || "(no prefix)"}
+                dispatch({
+                  type: "SET_NEW_VARIANT",
+                  value: clampVariant(newVariant, nextModel, modelVariantMap),
+                });
+              }}
+            >
+              <option value="">Select prefix</option>
+              {modelCatalog.prefixes.map((prefix) => (
+                <option key={prefix || "__none"} value={prefix}>
+                  {prefix || "(no prefix)"}
+                </option>
+              ))}
+            </Select>
+          </FormField>
+
+          <FormField label="Model">
+            <Select
+              value={selectedModelId}
+              onChange={(event) => {
+                const nextModel = composeModelRef(
+                  newModelPrefix,
+                  event.target.value,
+                );
+                dispatch({ type: "SET_NEW_MODEL", value: nextModel });
+
+                dispatch({
+                  type: "SET_NEW_VARIANT",
+                  value: clampVariant(newVariant, nextModel, modelVariantMap),
+                });
+              }}
+            >
+              <option value="">
+                {createModelIds.length === 0
+                  ? "No provider models detected"
+                  : "Select model"}
               </option>
-            ))}
-          </Select>
-        </FormField>
+              {createModelIds.map((modelId) => (
+                <option key={modelId} value={modelId}>
+                  {modelId}
+                </option>
+              ))}
+            </Select>
+          </FormField>
 
-        <FormField label="Model">
-          <Select
-            value={selectedModelId}
-            onChange={(event) => {
-              const nextModel = composeModelRef(
-                newModelPrefix,
-                event.target.value,
-              );
-              dispatch({ type: "SET_NEW_MODEL", value: nextModel });
+          <FormField label="Reasoning">
+            <Select
+              value={newVariant}
+              onChange={(event) =>
+                dispatch({ type: "SET_NEW_VARIANT", value: event.target.value })
+              }
+            >
+              <option value="">Default</option>
+              {createVariantOptions.map((variant) => (
+                <option key={variant} value={variant}>
+                  {formatVariantLabel(variant)}
+                </option>
+              ))}
+            </Select>
+          </FormField>
 
-              dispatch({
-                type: "SET_NEW_VARIANT",
-                value: clampVariant(newVariant, nextModel, modelVariantMap),
-              });
-            }}
-          >
-            <option value="">
-              {createModelIds.length === 0
-                ? "No provider models detected"
-                : "Select model"}
-            </option>
-            {createModelIds.map((modelId) => (
-              <option key={modelId} value={modelId}>
-                {modelId}
-              </option>
-            ))}
-          </Select>
-        </FormField>
+          <FormField label="Key pool">
+            <Select
+              value={newKeyPool}
+              onChange={(event) =>
+                dispatch({
+                  type: "SET_NEW_KEY_POOL",
+                  value: event.target.value as AgentKeyPool,
+                })
+              }
+            >
+              {KEY_POOL_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </Select>
+          </FormField>
 
-        <FormField label="Reasoning">
-          <Select
-            value={newVariant}
-            onChange={(event) =>
-              dispatch({ type: "SET_NEW_VARIANT", value: event.target.value })
-            }
-          >
-            <option value="">Default</option>
-            {createVariantOptions.map((variant) => (
-              <option key={variant} value={variant}>
-                {formatVariantLabel(variant)}
-              </option>
-            ))}
-          </Select>
-        </FormField>
-
-        <FormField label="Key pool">
-          <Select
-            value={newKeyPool}
-            onChange={(event) =>
-              dispatch({
-                type: "SET_NEW_KEY_POOL",
-                value: event.target.value as AgentKeyPool,
-              })
-            }
-          >
-            {KEY_POOL_OPTIONS.map((opt) => (
-              <option key={opt.value} value={opt.value}>
-                {opt.label}
-              </option>
-            ))}
-          </Select>
-        </FormField>
-
-        <Button
-          variant="primary"
-          size="sm"
-          onClick={onCreate}
-          disabled={busy}
-        >
-          <Plus className="mr-2 h-4 w-4" />
-          Create
-        </Button>
+          <div className="flex items-end sm:col-span-2 lg:col-span-1">
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={onCreate}
+              disabled={busy}
+              className="w-full sm:w-auto"
+            >
+              <Plus className="mr-2 h-4 w-4" />
+              Create
+            </Button>
+          </div>
+        </div>
       </CardContent>
     </Card>
   );

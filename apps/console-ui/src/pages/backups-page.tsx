@@ -86,32 +86,33 @@ export function BackupsPage() {
           {sortedItems.map((snapshot) => (
             <div
               key={snapshot.id}
-              className="grid gap-2 rounded-lg border border-[var(--color-line)] p-3 md:grid-cols-[1fr_auto]"
+              className="space-y-2 rounded-lg border border-[var(--color-line)] p-3"
             >
-              <div className="space-y-1 text-sm">
-                <p>
-                  <span className="font-medium">ID:</span> {snapshot.id}
-                </p>
-                <p>
-                  <span className="font-medium">Reason:</span>{" "}
-                  {snapshot.reason}
-                </p>
-                <p>
-                  <span className="font-medium">Created:</span>{" "}
-                  {new Date(snapshot.createdAt).toLocaleString()}
-                </p>
-                <p>
-                  <span className="font-medium">Files:</span>{" "}
-                  {snapshot.relativePaths.join(", ")}
-                </p>
-              </div>
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0 space-y-1 text-sm">
+                  <p className="truncate">
+                    <span className="font-medium">ID:</span> {snapshot.id}
+                  </p>
+                  <p>
+                    <span className="font-medium">Reason:</span>{" "}
+                    {snapshot.reason}
+                  </p>
+                  <p>
+                    <span className="font-medium">Created:</span>{" "}
+                    {new Date(snapshot.createdAt).toLocaleString()}
+                  </p>
+                  <p className="break-all">
+                    <span className="font-medium">Files:</span>{" "}
+                    {snapshot.relativePaths.join(", ")}
+                  </p>
+                </div>
 
-              <div className="flex items-end">
                 <Button
                   variant="secondary"
                   size="sm"
                   disabled={busyId !== null}
                   onClick={() => void restoreSnapshot(snapshot.id)}
+                  className="shrink-0"
                 >
                   <RotateCcw className="mr-2 h-4 w-4" />
                   Restore

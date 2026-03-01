@@ -3,6 +3,7 @@ import path from "path";
 
 export default defineConfig({
   test: {
+    name: "console-ui",
     environment: "jsdom",
     globals: true,
     setupFiles: ["./src/test/setup.ts"],

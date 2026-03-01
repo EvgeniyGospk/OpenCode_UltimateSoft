@@ -12,7 +12,7 @@ import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { FormField } from "@/components/ui/form-field";
-import { Input } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
 import { StatusMessages } from "@/components/ui/status-messages";
 import { Textarea } from "@/components/ui/textarea";
 import { apiClient } from "@/lib/api-client";
@@ -60,6 +60,13 @@ function StatusBadge({ status }: { status: JobRecord["status"] }) {
 // Terminal-style log viewer
 // ---------------------------------------------------------------------------
 
+/** Strip ANSI escape sequences (colors, bold, etc.) from a string. */
+function stripAnsi(text: string): string {
+  // Matches: ESC[ … m  |  ESC(B  |  ESC]…ST  and other common sequences
+  // eslint-disable-next-line no-control-regex
+  return text.replace(/\x1b\[[0-9;]*[A-Za-z]|\x1b\([A-Za-z]|\x1b\][^\x07]*(?:\x07|\x1b\\)/g, "");
+}
+
 function LogViewer({ logs }: { logs: JobLogEntry[] }) {
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -78,20 +85,33 @@ function LogViewer({ logs }: { logs: JobLogEntry[] }) {
   return (
     <div
       ref={scrollRef}
-      className="mt-3 max-h-80 overflow-y-auto rounded-lg border border-zinc-800 bg-zinc-950 p-4"
+      className="mt-3 max-h-80 overflow-y-auto overflow-x-auto rounded-lg border border-zinc-800 bg-zinc-950 p-2 sm:p-4"
     >
-      <div className="font-mono text-xs leading-relaxed text-zinc-300">
-        {logs.map((entry) => (
-          <div
-            key={entry.id}
-            className={entry.stream === "stderr" ? "text-red-400" : ""}
-          >
-            <span className="mr-2 text-zinc-500">
-              {new Date(entry.timestamp).toLocaleTimeString()}
-            </span>
-            {entry.line}
-          </div>
-        ))}
+      <div className="font-mono text-[11px] leading-relaxed text-zinc-300 sm:text-xs">
+        {logs.map((entry) => {
+          const cleaned = stripAnsi(entry.line);
+          const isFallback = cleaned.includes("[worker] Strategy: fallback:");
+          const isWorkerMeta = !isFallback && cleaned.startsWith("[worker]");
+
+          let lineClass = "";
+          if (entry.stream === "stderr") lineClass = "text-red-400";
+          else if (isFallback) lineClass = "text-amber-400";
+          else if (isWorkerMeta) lineClass = "text-zinc-500";
+
+          return (
+            <div key={entry.id} className={lineClass}>
+              <span className="mr-2 text-zinc-500">
+                {new Date(entry.timestamp).toLocaleTimeString()}
+              </span>
+              {isFallback && (
+                <span className="mr-1.5 inline-block rounded bg-amber-900/40 px-1 py-0.5 text-[10px] text-amber-300">
+                  FALLBACK
+                </span>
+              )}
+              {cleaned}
+            </div>
+          );
+        })}
       </div>
     </div>
   );
@@ -101,15 +121,26 @@ function LogViewer({ logs }: { logs: JobLogEntry[] }) {
 // Create-job form (dashed dropzone style)
 // ---------------------------------------------------------------------------
 
+const DEFAULT_SMOKE_PROMPT =
+  "List the files in the current directory and briefly describe the project structure.";
+
 interface CreateJobFormProps {
   busy: boolean;
+  agentKeys: string[];
   onSubmit: (agentKey: string, prompt: string) => void;
   onCancel: () => void;
 }
 
-function CreateJobForm({ busy, onSubmit, onCancel }: CreateJobFormProps) {
+function CreateJobForm({ busy, agentKeys = [], onSubmit, onCancel }: CreateJobFormProps) {
   const [agentKey, setAgentKey] = useState("");
-  const [prompt, setPrompt] = useState("");
+  const [prompt, setPrompt] = useState(DEFAULT_SMOKE_PROMPT);
+
+  // Auto-select first agent when the list arrives (or changes).
+  useEffect(() => {
+    if (!agentKey && agentKeys.length > 0) {
+      setAgentKey(agentKeys[0]);
+    }
+  }, [agentKeys, agentKey]);
 
   function handleSubmit(event: FormEvent) {
     event.preventDefault();
@@ -118,7 +149,7 @@ function CreateJobForm({ busy, onSubmit, onCancel }: CreateJobFormProps) {
   }
 
   return (
-    <div className="mb-6 rounded-xl border-2 border-dashed border-[var(--color-line)] bg-zinc-50/50 p-5">
+    <div className="mb-6 rounded-xl border-2 border-dashed border-[var(--color-line)] bg-zinc-50/50 p-3 sm:p-5">
       <div className="mb-4 flex items-center justify-between">
         <h3 className="text-sm font-semibold text-[var(--color-ink)]">
           Draft New Job
@@ -133,14 +164,22 @@ function CreateJobForm({ busy, onSubmit, onCancel }: CreateJobFormProps) {
       </div>
 
       <form onSubmit={handleSubmit}>
-        <div className="grid gap-4 sm:grid-cols-[1fr_2fr_auto]">
+        <div className="grid gap-3 sm:gap-4 sm:grid-cols-[1fr_2fr_auto]">
           <FormField label="Agent Key">
-            <Input
-              placeholder="e.g. explore"
+            <Select
               value={agentKey}
               onChange={(e) => setAgentKey(e.target.value)}
               required
-            />
+            >
+              {agentKeys.length === 0 && (
+                <option value="">No agents available</option>
+              )}
+              {agentKeys.map((key) => (
+                <option key={key} value={key}>
+                  {key}
+                </option>
+              ))}
+            </Select>
           </FormField>
           <FormField label="Prompt">
             <Textarea
@@ -152,7 +191,7 @@ function CreateJobForm({ busy, onSubmit, onCancel }: CreateJobFormProps) {
             />
           </FormField>
           <div className="flex items-end">
-            <Button type="submit" variant="primary" size="sm" disabled={busy}>
+            <Button type="submit" variant="primary" size="sm" disabled={busy || agentKeys.length === 0} className="w-full sm:w-auto">
               <Play className="mr-2 h-4 w-4" />
               Create
             </Button>
@@ -193,11 +232,11 @@ function JobCard({
   const isBusy = busyAction === job.id;
 
   return (
-    <Card className="p-4">
-      {/* Top row: status + agent key + actions */}
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0 flex-1 space-y-1">
-          <div className="flex items-center gap-3">
+    <Card className="p-3 sm:p-4">
+      {/* Top row: status + agent key */}
+      <div className="space-y-2">
+        <div className="min-w-0 space-y-1">
+          <div className="flex flex-wrap items-center gap-2 sm:gap-3">
             <span className="text-sm font-bold text-[var(--color-ink)]">
               {job.agentKey}
             </span>
@@ -221,8 +260,8 @@ function JobCard({
           </div>
         </div>
 
-        {/* Action buttons */}
-        <div className="flex shrink-0 items-center gap-2">
+        {/* Action buttons — wrap on mobile */}
+        <div className="flex flex-wrap items-center gap-2">
           <Button
             variant="ghost"
             size="sm"
@@ -278,6 +317,7 @@ function JobCard({
 
 export function JobsPage() {
   const [items, setItems] = useState<JobRecord[]>([]);
+  const [agentKeys, setAgentKeys] = useState<string[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [logs, setLogs] = useState<JobLogEntry[]>([]);
@@ -307,8 +347,12 @@ export function JobsPage() {
 
   const loadJobs = useCallback(async () => {
     await run(async () => {
-      const response = await apiClient.listJobs();
-      setItems(response.data.items);
+      const [jobsResponse, agentsResponse] = await Promise.all([
+        apiClient.listJobs(),
+        apiClient.listAgents(),
+      ]);
+      setItems(jobsResponse.data.items);
+      setAgentKeys(agentsResponse.data.items.map((a) => a.key));
     });
   }, [run]);
 
@@ -423,6 +467,7 @@ export function JobsPage() {
       {showForm && (
         <CreateJobForm
           busy={busyAction === "create"}
+          agentKeys={agentKeys}
           onSubmit={(agentKey, prompt) =>
             void handleCreateJob(agentKey, prompt)
           }

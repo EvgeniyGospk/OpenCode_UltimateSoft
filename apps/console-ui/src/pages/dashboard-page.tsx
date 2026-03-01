@@ -26,11 +26,11 @@ function MetricCard({
   indicator?: ReactNode;
 }) {
   return (
-    <Card className="p-5">
-      <p className="text-sm font-medium text-[var(--color-muted)]">{label}</p>
-      <div className="mt-2 flex items-center gap-2">
+    <Card className="p-4 sm:p-5">
+      <p className="text-xs font-medium text-[var(--color-muted)] sm:text-sm">{label}</p>
+      <div className="mt-1.5 flex items-center gap-2 sm:mt-2">
         {indicator}
-        <p className="text-3xl font-bold tracking-tight text-[var(--color-ink)]">
+        <p className="truncate text-2xl font-bold tracking-tight text-[var(--color-ink)] sm:text-3xl">
           {value}
         </p>
       </div>
@@ -132,7 +132,7 @@ export function DashboardPage() {
                 <span className="font-medium">Name:</span>{" "}
                 {profileData.data.name}
               </p>
-              <p>
+              <p className="break-all">
                 <span className="font-medium">Path:</span>{" "}
                 {profileData.data.path}
               </p>

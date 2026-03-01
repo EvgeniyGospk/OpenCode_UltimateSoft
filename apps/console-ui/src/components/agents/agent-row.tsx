@@ -59,7 +59,7 @@ export function AgentRow({
   return (
     <div className="rounded-xl border border-[var(--color-line)] bg-[var(--color-panel)] transition-all hover:shadow-md">
       {/* Header */}
-      <div className="flex items-center gap-3 border-b border-[var(--color-line)] px-4 py-3">
+      <div className="flex items-center gap-2 border-b border-[var(--color-line)] px-3 py-2.5 sm:gap-3 sm:px-4 sm:py-3">
         <Bot className="h-5 w-5 shrink-0 text-[var(--color-muted)]" />
         <Input
           type="text"
@@ -71,7 +71,7 @@ export function AgentRow({
               value: event.target.value,
             })
           }
-          className="flex-1 border-transparent bg-transparent text-base font-semibold hover:border-[var(--color-line)] focus:border-[var(--color-line)]"
+          className="min-w-0 flex-1 border-transparent bg-transparent text-sm font-semibold hover:border-[var(--color-line)] focus:border-[var(--color-line)] sm:text-base"
         />
         <Button
           size="sm"
@@ -91,8 +91,8 @@ export function AgentRow({
         </Button>
       </div>
 
-      {/* Body — 3-column grid */}
-      <div className="grid gap-4 px-4 py-3 md:grid-cols-3">
+      {/* Body — stacks vertically on mobile, 3-column on md+ */}
+      <div className="grid gap-3 px-3 py-2.5 sm:gap-4 sm:px-4 sm:py-3 md:grid-cols-3">
         <div className="space-y-1">
           <label className="text-xs font-medium text-[var(--color-muted)]">Model</label>
           <Select

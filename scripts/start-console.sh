@@ -181,6 +181,48 @@ cleanup() {
 }
 trap cleanup INT TERM EXIT
 
+# ── Auto-detect OpenCode server (for jobs worker) ──
+detect_opencode_server() {
+  # Look for a running opencode-cli serve process and extract its env
+  local oc_pid=""
+  oc_pid=$(pgrep -u "$(id -u)" -f 'opencode.*serve.*--port' 2>/dev/null | head -1) || true
+  if [ -z "$oc_pid" ]; then
+    oc_pid=$(pgrep -u "$(id -u)" -f 'opencode-cli.*serve' 2>/dev/null | head -1) || true
+  fi
+
+  if [ -n "$oc_pid" ] && [ -d "/proc/$oc_pid/environ" ] 2>/dev/null || [ -r "/proc/$oc_pid/environ" ]; then
+    local oc_user oc_pass oc_port
+    oc_user=$(tr '\0' '\n' < "/proc/$oc_pid/environ" 2>/dev/null | grep '^OPENCODE_SERVER_USERNAME=' | cut -d= -f2-) || true
+    oc_pass=$(tr '\0' '\n' < "/proc/$oc_pid/environ" 2>/dev/null | grep '^OPENCODE_SERVER_PASSWORD=' | cut -d= -f2-) || true
+
+    # Extract --port from command line
+    oc_port=$(tr '\0' ' ' < "/proc/$oc_pid/cmdline" 2>/dev/null | grep -oP '(?<=--port )\d+' || true)
+    if [ -z "$oc_port" ]; then
+      # Try /proc/PID/cmdline differently
+      oc_port=$(cat "/proc/$oc_pid/cmdline" 2>/dev/null | xargs -0 printf '%s\n' | grep -A1 '^--port$' | tail -1) || true
+    fi
+
+    if [ -n "$oc_port" ] && [ -n "$oc_user" ] && [ -n "$oc_pass" ]; then
+      export OPENCODE_SERVER_URL="http://127.0.0.1:${oc_port}"
+      export OPENCODE_SERVER_USERNAME="$oc_user"
+      export OPENCODE_SERVER_PASSWORD="$oc_pass"
+      ok "OpenCode server found: PID=$oc_pid port=$oc_port"
+      return 0
+    fi
+  fi
+
+  # Fallback: check if env vars are already set
+  if [ -n "${OPENCODE_SERVER_URL:-}" ]; then
+    ok "OpenCode server URL from env: $OPENCODE_SERVER_URL"
+    return 0
+  fi
+
+  warn "OpenCode server not detected — jobs will fail until OPENCODE_SERVER_URL is set"
+  return 1
+}
+
+detect_opencode_server || true
+
 # ── Запуск API (tsx watch = hot-reload) ──
 log "Запускаю API (hot-reload) на http://127.0.0.1:$API_PORT ..."
 npm --prefix "$API_DIR" run dev 2>&1 &

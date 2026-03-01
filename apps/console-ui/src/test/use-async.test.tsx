@@ -161,4 +161,25 @@ describe("useAsync", () => {
     // If we got here without errors, the mount guard worked
     expect(true).toBe(true);
   });
+
+  it("recovers after unmount+remount (React StrictMode dev cycle)", async () => {
+    // Simulate the StrictMode double-mount: render → unmount → re-render.
+    // The first render's cleanup sets mountedRef = false; the second render's
+    // effect must reset it to true so that run() can update state again.
+    const { result, unmount } = renderHook(() => useAsync());
+
+    // Unmount (as StrictMode does), then re-render with the same hook.
+    unmount();
+
+    // Re-mount — simulates the second mount in StrictMode.
+    const { result: result2 } = renderHook(() => useAsync());
+
+    await act(async () => {
+      await result2.current.run(async () => "after remount");
+    });
+
+    // Critical: loading must be false — not stuck on true.
+    expect(result2.current.loading).toBe(false);
+    expect(result2.current.error).toBeNull();
+  });
 });
